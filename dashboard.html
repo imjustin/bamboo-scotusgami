@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCOTUSgami — Justice Agreement Dashboard</title>
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+<header>
+  <h1>SCOTUSgami</h1>
+  <span class="subtitle">Justice Agreement Dashboard</span>
+</header>
+
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="visualize">Visualize</button>
+  <button class="tab-btn" data-tab="data">Data</button>
+  <button class="tab-btn" data-tab="about">About</button>
+  <button class="tab-btn" data-tab="feed">Feed</button>
+</div>
+
+<div id="tab-visualize" class="tab-content active">
+  <div class="viz-controls">
+    <div class="term-filter-controls">
+      <select id="term-filter">
+        <option value="current">Current Term (2025)</option>
+        <option value="last">Last Term (2024)</option>
+        <option value="last3">Last 3 Terms</option>
+        <option value="all" selected>All Terms</option>
+        <option value="custom">Custom Range</option>
+      </select>
+      <span id="custom-range-inputs" style="display:none">
+        <input type="number" id="term-start" min="2005" max="2025" placeholder="Start" value="2005">
+        <input type="number" id="term-end" min="2005" max="2025" placeholder="End" value="2025">
+      </span>
+    </div>
+  </div>
+  <div class="viz-grid">
+    <div class="panel panel-heatmap">
+      <div class="panel-title">Agreement Heatmap</div>
+      <div id="heatmap"></div>
+      <div class="legend">
+        <span>Low</span>
+        <div class="legend-bar" style="width: 120px; background: linear-gradient(to right, #da3633, #d29922, #2ea043);"></div>
+        <span>High</span>
+      </div>
+    </div>
+    <div class="panel panel-network">
+      <div class="panel-title">Coalition Network</div>
+      <div id="network"></div>
+    </div>
+    <div class="panel panel-pair-detail">
+      <div class="panel-title">Pair Detail</div>
+      <div id="pair-detail">
+        <div class="pair-detail-placeholder">Select pairs from the heatmap or network to see details</div>
+      </div>
+    </div>
+    <div class="panel panel-timeline">
+      <div class="timeline-header">
+        <div class="panel-title" style="margin-bottom:0">Agreement Over Time</div>
+        <button class="clear-btn" id="btn-clear-all" style="display:none">Clear All</button>
+      </div>
+      <div id="timeline"></div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-data" class="tab-content">
+  <div class="data-split">
+    <div class="data-left">
+      <div class="panel-title">Dataset</div>
+      <div id="status-bar" class="status-bar"></div>
+      <ul class="case-list" id="case-list"></ul>
+    </div>
+    <div class="data-right">
+      <div class="panel-title">Case Detail</div>
+      <div id="case-detail">
+        <div class="pair-detail-placeholder">Click a case to see vote breakdown</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-about" class="tab-content"></div>
+
+<div id="tab-feed" class="tab-content"></div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="js/visualize.js"></script>
+<script src="js/data-tab.js"></script>
+<script src="js/about.js"></script>
+<script src="js/feed.js"></script>
+</body>
+</html>

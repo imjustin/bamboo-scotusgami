@@ -11,7 +11,19 @@ from .models import (
 )
 
 
-JUSTICES = ["Roberts", "Thomas", "Alito", "Sotomayor", "Kagan", "Gorsuch", "Kavanaugh", "Barrett", "Jackson"]
+JUSTICES = [
+    # Current justices (2025)
+    "Roberts", "Thomas", "Alito", "Sotomayor", "Kagan",
+    "Gorsuch", "Kavanaugh", "Barrett", "Jackson",
+    # Previous Roberts Court justices
+    "O'Connor",   # retired 2006
+    "Souter",     # retired 2009
+    "Stevens",    # retired 2010
+    "Ginsburg",   # served until 2020
+    "Breyer",     # retired 2022
+    "Kennedy",    # retired 2018
+    "Scalia",     # served until 2016
+]
 
 
 def extract_votes_from_pdf(filepath: str) -> dict[str, str]:
@@ -75,17 +87,23 @@ def extract_votes_from_pdf(filepath: str) -> dict[str, str]:
     return votes
 
 
-def process_case(conn: sqlite3.Connection, case: dict, pdf_path: str) -> int:
-    """Process a single case: extract votes from PDF and store in DB."""
+def process_case(conn: sqlite3.Connection, case: dict, pdf_path: str, term: int = 25) -> int:
+    """Process a single case: extract votes from PDF and store in DB.
+
+    Args:
+        term: Two-digit term number (e.g. 25 for 2025, 05 for 2005).
+    """
     votes = extract_votes_from_pdf(pdf_path)
     if not votes:
         return None
+
+    term_year = 2000 + term
 
     case_id = get_or_create_case(
         conn,
         name=case['name'],
         date_decided=case['date'],
-        term_year=2025,
+        term_year=term_year,
         docket_number=case['docket'],
     )
 

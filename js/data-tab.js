@@ -1,0 +1,219 @@
+// ============================================
+// DATA TAB: Case List + Vote Detail
+// ============================================
+window.addEventListener('scotusgami-data-ready', function() {
+  var DATA = window.DATA;
+  if (!DATA) return;
+
+  function parseDate(dateStr) {
+    var parts = dateStr.split('/');
+    var month = parseInt(parts[0], 10);
+    var day = parseInt(parts[1], 10);
+    var year = parseInt(parts[2], 10);
+    year += year < 50 ? 2000 : 1900;
+    return new Date(year, month - 1, day);
+  }
+
+  // Sort cases reverse chronologically (most recent first)
+  var cases = DATA.cases.slice().sort(function(a, b) {
+    return parseDate(b.date) - parseDate(a.date);
+  });
+
+  // Index votes by case_id
+  var votesByCase = {};
+  DATA.votes.forEach(function(v) {
+    if (!votesByCase[v.case_id]) votesByCase[v.case_id] = [];
+    votesByCase[v.case_id].push(v);
+  });
+
+  var caseListEl = d3.select('#case-list');
+  var detailEl = document.getElementById('case-detail');
+
+  cases.forEach(function(c) {
+    var li = caseListEl.append('li')
+      .datum(c)
+      .on('click', function() {
+        caseListEl.selectAll('li').classed('selected', false);
+        d3.select(this).classed('selected', true);
+        showCaseDetail(c);
+      });
+    var nameDiv = document.createElement('div');
+    nameDiv.className = 'case-name';
+    nameDiv.textContent = c.name;
+    li.node().appendChild(nameDiv);
+    var dateDiv = document.createElement('div');
+    dateDiv.className = 'case-date';
+    dateDiv.textContent = c.date + (c.docket ? ' \u2014 ' + c.docket : '');
+    li.node().appendChild(dateDiv);
+  });
+
+  document.getElementById('status-bar').textContent = cases.length + ' cases loaded';
+
+  function showCaseDetail(c) {
+    // Clear existing
+    while (detailEl.firstChild) detailEl.removeChild(detailEl.firstChild);
+
+    // Case header
+    var title = document.createElement('div');
+    title.className = 'feed-card-headline';
+    title.textContent = c.name;
+    detailEl.appendChild(title);
+
+    var date = document.createElement('div');
+    date.className = 'feed-card-meta';
+    date.textContent = c.date + (c.docket ? ' \u2014 Docket: ' + c.docket : '');
+    detailEl.appendChild(date);
+
+    var caseVotes = votesByCase[c.id] || [];
+    if (caseVotes.length === 0) {
+      var noData = document.createElement('div');
+      noData.className = 'pair-detail-placeholder';
+      noData.style.marginTop = '20px';
+      noData.textContent = 'No vote data available for this case';
+      detailEl.appendChild(noData);
+      return;
+    }
+
+    // Group by vote type
+    var groups = { majority: [], concurrence: [], dissent: [] };
+    caseVotes.forEach(function(v) {
+      var type = v.vote;
+      if (type === 'majority') groups.majority.push(v.justice);
+      else if (type === 'concurrence') groups.concurrence.push(v.justice);
+      else if (type === 'dissent') groups.dissent.push(v.justice);
+      else {
+        // Other types go to concurrence bucket
+        if (!groups[type]) groups[type] = [];
+        groups[type].push(v.justice);
+      }
+    });
+
+    // Split summary
+    var majCount = groups.majority.length + groups.concurrence.length;
+    var disCount = groups.dissent.length;
+    var splitDiv = document.createElement('div');
+    splitDiv.style.cssText = 'margin-top: 12px; font-size: 18px; font-weight: 600; color: #f0f6fc;';
+    splitDiv.textContent = majCount + '-' + disCount;
+    detailEl.appendChild(splitDiv);
+
+    var breakdown = document.createElement('div');
+    breakdown.className = 'vote-breakdown';
+
+    // Majority
+    if (groups.majority.length > 0) {
+      var majGroup = document.createElement('div');
+      majGroup.className = 'vote-group';
+      var majLabel = document.createElement('div');
+      majLabel.className = 'vote-group-label';
+      majLabel.textContent = 'Majority (' + groups.majority.length + ')';
+      majGroup.appendChild(majLabel);
+      groups.majority.sort().forEach(function(j) {
+        var row = document.createElement('div');
+        row.className = 'vote-justice majority';
+        row.textContent = j;
+        majGroup.appendChild(row);
+      });
+      breakdown.appendChild(majGroup);
+    }
+
+    // Concurrence
+    if (groups.concurrence.length > 0) {
+      var conGroup = document.createElement('div');
+      conGroup.className = 'vote-group';
+      var conLabel = document.createElement('div');
+      conLabel.className = 'vote-group-label';
+      conLabel.textContent = 'Concurrence (' + groups.concurrence.length + ')';
+      conGroup.appendChild(conLabel);
+      groups.concurrence.sort().forEach(function(j) {
+        var row = document.createElement('div');
+        row.className = 'vote-justice concurrence';
+        row.textContent = j;
+        conGroup.appendChild(row);
+      });
+      breakdown.appendChild(conGroup);
+    }
+
+    // Dissent
+    if (groups.dissent.length > 0) {
+      var disGroup = document.createElement('div');
+      disGroup.className = 'vote-group';
+      var disLabel = document.createElement('div');
+      disLabel.className = 'vote-group-label';
+      disLabel.textContent = 'Dissent (' + groups.dissent.length + ')';
+      disGroup.appendChild(disLabel);
+      groups.dissent.sort().forEach(function(j) {
+        var row = document.createElement('div');
+        row.className = 'vote-justice dissent';
+        row.textContent = j;
+        disGroup.appendChild(row);
+      });
+      breakdown.appendChild(disGroup);
+    }
+
+    detailEl.appendChild(breakdown);
+
+    // Sources section
+    if (c.source_url || c.oyez_url || c.scotusblog_url) {
+      var sourcesDiv = document.createElement('div');
+      sourcesDiv.className = 'case-sources';
+
+      var sourcesLabel = document.createElement('div');
+      sourcesLabel.className = 'vote-group-label';
+      sourcesLabel.textContent = 'Sources';
+      sourcesDiv.appendChild(sourcesLabel);
+
+      if (c.source_url) {
+        var sourceRow = document.createElement('div');
+        sourceRow.className = 'case-source-row';
+        var sourcePrefix = document.createElement('span');
+        sourcePrefix.className = 'case-source-label';
+        sourcePrefix.textContent = 'Primary: ';
+        sourceRow.appendChild(sourcePrefix);
+        var sourceLink = document.createElement('a');
+        sourceLink.href = c.source_url;
+        sourceLink.target = '_blank';
+        sourceLink.rel = 'noopener';
+        sourceLink.className = 'case-source-link';
+        sourceLink.textContent = c.source_name || 'Source';
+        sourceRow.appendChild(sourceLink);
+        sourcesDiv.appendChild(sourceRow);
+      }
+
+      if (c.oyez_url) {
+        var oyezRow = document.createElement('div');
+        oyezRow.className = 'case-source-row';
+        var oyezPrefix = document.createElement('span');
+        oyezPrefix.className = 'case-source-label';
+        oyezPrefix.textContent = 'Verify: ';
+        oyezRow.appendChild(oyezPrefix);
+        var oyezLink = document.createElement('a');
+        oyezLink.href = c.oyez_url;
+        oyezLink.target = '_blank';
+        oyezLink.rel = 'noopener';
+        oyezLink.className = 'case-source-link';
+        oyezLink.textContent = 'Oyez';
+        oyezRow.appendChild(oyezLink);
+        sourcesDiv.appendChild(oyezRow);
+      }
+
+      if (c.scotusblog_url) {
+        var blogRow = document.createElement('div');
+        blogRow.className = 'case-source-row';
+        var blogPrefix = document.createElement('span');
+        blogPrefix.className = 'case-source-label';
+        blogPrefix.textContent = 'Verify: ';
+        blogRow.appendChild(blogPrefix);
+        var blogLink = document.createElement('a');
+        blogLink.href = c.scotusblog_url;
+        blogLink.target = '_blank';
+        blogLink.rel = 'noopener';
+        blogLink.className = 'case-source-link';
+        blogLink.textContent = 'SCOTUSblog';
+        blogRow.appendChild(blogLink);
+        sourcesDiv.appendChild(blogRow);
+      }
+
+      detailEl.appendChild(sourcesDiv);
+    }
+  }
+});

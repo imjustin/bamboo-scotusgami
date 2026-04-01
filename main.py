@@ -7,6 +7,7 @@ import click
 from scotusgami.fetcher import SCOTUSFetcher
 from scotusgami.models import init_db, get_db_stats
 from scotusgami.processor import process_case, extract_votes_from_pdf
+from scotusgami.import_scdb import run_import
 
 
 @click.group()
@@ -50,7 +51,7 @@ def fetch(term: int, limit: int):
             click.echo(f"    ✗ Could not parse votes")
             continue
 
-        case_id = process_case(conn, case, pdf_path)
+        case_id = process_case(conn, case, pdf_path, term=term)
         processed += 1
 
         vote_summary = ", ".join(f"{j}: {v}" for j, v in sorted(votes.items()))
@@ -92,6 +93,12 @@ def status():
     click.echo(f"  Agreements: {stats['agreements']}")
     if stats['date_range'] and stats['date_range'][0]:
         click.echo(f"  Date Range: {stats['date_range'][0]} to {stats['date_range'][1]}")
+
+
+@cli.command("import-scdb")
+def import_scdb():
+    """Import historical data from the Supreme Court Database (2005-2024)."""
+    run_import()
 
 
 if __name__ == "__main__":

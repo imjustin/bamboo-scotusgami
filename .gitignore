@@ -26,3 +26,5 @@ ENV/
 data/
 .DS_Store
 *.db
+opinion-pdfs/
+.superpowers/
