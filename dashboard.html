@@ -4,9 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SCOTUSgami — Justice Agreement Dashboard</title>
+<meta name="description" content="Track how U.S. Supreme Court justices agree and disagree, case by case, across the Roberts Court era.">
+<meta property="og:title" content="SCOTUSgami — Justice Agreement Dashboard">
+<meta property="og:description" content="Pairwise agreement tracking for all 16 Roberts Court justices. Heatmaps, network graphs, and a novelty feed.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>&#x2696;</text></svg>">
 <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
+
+<div id="loading-overlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Loading SCOTUSgami...</div>
+</div>
 
 <header>
   <h1>SCOTUSgami</h1>
@@ -23,6 +33,7 @@
 <div id="tab-visualize" class="tab-content active">
   <div class="viz-controls">
     <div class="term-filter-controls">
+      <label class="term-filter-label">Showing:</label>
       <select id="term-filter">
         <option value="current">Current Term (2025)</option>
         <option value="last">Last Term (2024)</option>
@@ -35,10 +46,10 @@
     <div class="panel panel-heatmap">
       <div class="panel-title">Agreement Heatmap</div>
       <div id="heatmap"></div>
-      <div class="legend">
-        <span>Low</span>
+      <div class="legend" id="heatmap-legend">
+        <span id="legend-min"></span>
         <div class="legend-bar" style="width: 120px; background: linear-gradient(to right, #da3633, #d29922, #2ea043);"></div>
-        <span>High</span>
+        <span id="legend-max"></span>
       </div>
     </div>
     <div class="panel panel-network">

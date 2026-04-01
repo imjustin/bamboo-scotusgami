@@ -435,6 +435,14 @@ window.addEventListener('scotusgami-data-ready', function() {
 
   feedContainer.appendChild(layout);
 
+  function getAccentClass(items) {
+    var types = items.map(function(it) { return it.type; });
+    if (types.indexOf('agreement_streak') >= 0 || types.indexOf('first_agreement') >= 0 || types.indexOf('milestone_rate') >= 0) return 'accent-agreement';
+    if (types.indexOf('disagreement_streak') >= 0 || types.indexOf('sole_dissenter') >= 0 || types.indexOf('sole_dissenter_pair') >= 0 || types.indexOf('first_disagreement') >= 0) return 'accent-disagreement';
+    if (types.indexOf('unanimous') >= 0) return 'accent-routine';
+    return 'accent-routine';
+  }
+
   function renderFeedList() {
     while (feedList.firstChild) feedList.removeChild(feedList.firstChild);
 
@@ -473,7 +481,13 @@ window.addEventListener('scotusgami-data-ready', function() {
 
       var card = document.createElement('div');
       card.className = 'feed-card';
-      if (hasScotus) card.classList.add('scotusgami');
+      if (hasScotus) {
+        card.classList.add('scotusgami');
+      } else {
+        // Determine accent color from dominant event type
+        var accentClass = getAccentClass(items);
+        if (accentClass) card.classList.add(accentClass);
+      }
 
       // Case name as title
       var caseTitle = document.createElement('div');
@@ -607,7 +621,12 @@ window.addEventListener('scotusgami-data-ready', function() {
 
       var card = document.createElement('div');
       card.className = 'feed-viz-card';
-      if (hasScotus) card.classList.add('scotusgami');
+      if (hasScotus) {
+        card.classList.add('scotusgami');
+      } else {
+        var vizAccent = getAccentClass(items);
+        if (vizAccent) card.classList.add(vizAccent);
+      }
 
       // Case name as clickable link to Data tab
       var caseLink = document.createElement('a');

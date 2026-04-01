@@ -14,16 +14,48 @@
   function makeSection(title) {
     var div = document.createElement('div');
     div.className = 'about-section';
+
+    // Collapsible header
+    var header = document.createElement('div');
+    header.className = 'about-section-header';
+    var chevron = document.createElement('span');
+    chevron.className = 'about-section-chevron';
+    chevron.textContent = '\u25BC';
+    header.appendChild(chevron);
     var h2 = document.createElement('h2');
     h2.textContent = title;
-    div.appendChild(h2);
+    header.appendChild(h2);
+    div.appendChild(header);
+
+    // Body container
+    var body = document.createElement('div');
+    body.className = 'about-section-body';
+    div.appendChild(body);
+    div._body = body;
+
+    // Toggle collapse
+    header.addEventListener('click', function() {
+      var isCollapsed = body.classList.contains('collapsed');
+      if (isCollapsed) {
+        body.classList.remove('collapsed');
+        chevron.classList.remove('collapsed');
+      } else {
+        body.classList.add('collapsed');
+        chevron.classList.add('collapsed');
+      }
+    });
+
     return div;
+  }
+
+  function getBody(parent) {
+    return parent._body || parent;
   }
 
   function addParagraph(parent, text) {
     var p = document.createElement('p');
     p.textContent = text;
-    parent.appendChild(p);
+    getBody(parent).appendChild(p);
     return p;
   }
 
@@ -31,7 +63,7 @@
     var h3 = document.createElement('h3');
     h3.className = 'about-subheading';
     h3.textContent = text;
-    parent.appendChild(h3);
+    getBody(parent).appendChild(h3);
     return h3;
   }
 
@@ -42,7 +74,7 @@
       li.textContent = item;
       ul.appendChild(li);
     });
-    parent.appendChild(ul);
+    getBody(parent).appendChild(ul);
     return ul;
   }
 
@@ -52,7 +84,7 @@
     var code = document.createElement('code');
     code.textContent = text;
     pre.appendChild(code);
-    parent.appendChild(pre);
+    getBody(parent).appendChild(pre);
     return pre;
   }
 
@@ -64,7 +96,7 @@
     var span = document.createElement('span');
     span.textContent = ' ' + normalText;
     p.appendChild(span);
-    parent.appendChild(p);
+    getBody(parent).appendChild(p);
     return p;
   }
 
@@ -98,7 +130,7 @@
     });
     table.appendChild(tbody);
     wrapper.appendChild(table);
-    parent.appendChild(wrapper);
+    getBody(parent).appendChild(wrapper);
     return table;
   }
 
@@ -191,12 +223,21 @@
   );
 
   addSubheading(sec3, 'Score Tiers');
-  addList(sec3, [
-    '80\u2013100 = Headline SCOTUSgami \u2014 a genuinely novel or rare coalition pattern',
-    '50\u201379 = Notable \u2014 worth paying attention to',
-    '25\u201349 = Interesting \u2014 mildly unusual but not shocking',
-    'Below 25 = Routine \u2014 expected voting behavior'
-  ]);
+  var tierTable = addTable(sec3,
+    ['Range', 'Tier', 'Meaning'],
+    [
+      ['80\u2013100', 'Headline SCOTUSgami', 'A genuinely novel or rare coalition pattern'],
+      ['50\u201379', 'Notable', 'Worth paying attention to'],
+      ['25\u201349', 'Interesting', 'Mildly unusual but not shocking'],
+      ['Below 25', 'Routine', 'Expected voting behavior']
+    ]
+  );
+  // Apply tier color classes to rows
+  var tierRows = tierTable.querySelectorAll('tbody tr');
+  if (tierRows[0]) tierRows[0].className = 'score-tier-headline';
+  if (tierRows[1]) tierRows[1].className = 'score-tier-notable';
+  if (tierRows[2]) tierRows[2].className = 'score-tier-interesting';
+  if (tierRows[3]) tierRows[3].className = 'score-tier-routine';
 
   addSubheading(sec3, 'Ideological Groupings');
   addBoldLine(sec3, 'Conservative-leaning:', 'Roberts, Thomas, Alito, Gorsuch, Kavanaugh, Barrett');

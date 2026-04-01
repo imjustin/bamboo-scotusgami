@@ -90,15 +90,19 @@ hmSvg.selectAll('.row-label')
   .attr('text-anchor', 'end')
   .text(function(d) { return d; });
 
-// Col labels
+// Col labels (rotated full names)
 hmSvg.selectAll('.col-label')
   .data(justices)
   .join('text')
   .attr('class', 'heatmap-label')
   .attr('x', function(d, i) { return labelWidth + i * cellSize + cellSize / 2; })
   .attr('y', labelWidth - 6)
-  .attr('text-anchor', 'middle')
-  .text(function(d) { return d.slice(0, 3); });
+  .attr('text-anchor', 'start')
+  .attr('transform', function(d, i) {
+    var x = labelWidth + i * cellSize + cellSize / 2;
+    return 'rotate(-45,' + x + ',' + (labelWidth - 6) + ')';
+  })
+  .text(function(d) { return d; });
 
 // Cells
 var cellData = [];
@@ -114,6 +118,10 @@ var minRate = Math.min.apply(null, rates);
 var maxRate = Math.max.apply(null, rates);
 var midRate = (minRate + maxRate) / 2;
 colorScale.domain([minRate, midRate, maxRate]);
+
+// Update legend range labels
+document.getElementById('legend-min').textContent = Math.round(minRate) + '%';
+document.getElementById('legend-max').textContent = Math.round(maxRate) + '%';
 
 var hmCells = hmSvg.selectAll('.heatmap-cell')
   .data(cellData)
@@ -144,7 +152,7 @@ hmSvg.selectAll('.cell-text')
   .attr('y', function(d) { return labelWidth + d.i * cellSize + cellSize / 2 + 4; })
   .attr('text-anchor', 'middle')
   .attr('fill', '#f0f6fc')
-  .attr('font-size', '11px')
+  .attr('font-size', '12px')
   .attr('font-weight', '500')
   .attr('pointer-events', 'none')
   .text(function(d) { return Math.round(d.rate); });
@@ -220,6 +228,11 @@ nodeEls.append('text')
   .text(function(d) { return d.id.slice(0, 3); });
 
 simulation.on('tick', function() {
+  var pad = 35;
+  nodes.forEach(function(d) {
+    d.x = Math.max(pad, Math.min(netW - pad, d.x));
+    d.y = Math.max(pad, Math.min(netH - pad, d.y));
+  });
   linkEls
     .attr('x1', function(d) { return d.source.x; }).attr('y1', function(d) { return d.source.y; })
     .attr('x2', function(d) { return d.target.x; }).attr('y2', function(d) { return d.target.y; });
@@ -530,6 +543,8 @@ function updateHeatmapData(filteredAgreements) {
     var maxR = Math.max.apply(null, rates);
     var midR = (minR + maxR) / 2;
     colorScale.domain([minR, midR, maxR]);
+    document.getElementById('legend-min').textContent = Math.round(minR) + '%';
+    document.getElementById('legend-max').textContent = Math.round(maxR) + '%';
   }
 
   // Update cell fill colors
@@ -545,7 +560,7 @@ function updateHeatmapData(filteredAgreements) {
     .attr('y', function(d) { return labelWidth + d.i * cellSize + cellSize / 2 + 4; })
     .attr('text-anchor', 'middle')
     .attr('fill', '#f0f6fc')
-    .attr('font-size', '11px')
+    .attr('font-size', '12px')
     .attr('font-weight', '500')
     .attr('pointer-events', 'none')
     .text(function(d) { return Math.round(d.rate); });
@@ -882,8 +897,14 @@ function updatePairDetail() {
 // Dispatch event so other scripts know data is ready
 window.dispatchEvent(new Event('scotusgami-data-ready'));
 
+// Hide loading overlay
+var loadingOverlay = document.getElementById('loading-overlay');
+if (loadingOverlay) loadingOverlay.classList.add('hidden');
+
 }).catch(function(err) {
   console.error('Failed to load dashboard data:', err);
+  var loadingEl = document.getElementById('loading-overlay');
+  if (loadingEl) loadingEl.classList.add('hidden');
   var body = document.querySelector('.viz-grid') || document.body;
   var errDiv = document.createElement('div');
   errDiv.className = 'pair-detail-placeholder';

@@ -47,7 +47,11 @@ window.addEventListener('scotusgami-data-ready', function() {
     li.node().appendChild(dateDiv);
   });
 
-  document.getElementById('status-bar').textContent = cases.length + ' cases loaded';
+  var statusBar = document.getElementById('status-bar');
+  statusBar.textContent = cases.length + ' cases loaded';
+
+  // Show default stats card
+  showDefaultStats();
 
   // Search filter for case list
   var dataSearchInput = document.getElementById('data-search');
@@ -66,6 +70,64 @@ window.addEventListener('scotusgami-data-ready', function() {
         }
       });
     });
+  }
+
+  function showDefaultStats() {
+    while (detailEl.firstChild) detailEl.removeChild(detailEl.firstChild);
+
+    var card = document.createElement('div');
+    card.className = 'data-stats-card';
+
+    function addStat(label, value) {
+      var row = document.createElement('div');
+      row.className = 'stat-row';
+      var lbl = document.createElement('span');
+      lbl.className = 'stat-label';
+      lbl.textContent = label;
+      row.appendChild(lbl);
+      var val = document.createElement('span');
+      val.className = 'stat-value';
+      val.textContent = value;
+      row.appendChild(val);
+      card.appendChild(row);
+    }
+
+    addStat('Total Cases', cases.length);
+
+    // Date range
+    if (cases.length > 0) {
+      addStat('Date Range', cases[cases.length - 1].date + ' \u2014 ' + cases[0].date);
+    }
+
+    // Most and least agreeing pair
+    var bestPair = null, bestRate = 0, worstPair = null, worstRate = 100;
+    var currentJustices = DATA.justices;
+    for (var i = 0; i < currentJustices.length; i++) {
+      for (var j = i + 1; j < currentJustices.length; j++) {
+        var a = currentJustices[i], b = currentJustices[j];
+        var key1 = a + '-' + b, key2 = b + '-' + a;
+        var d = DATA.agreements[key1] || DATA.agreements[key2];
+        if (d && d.cases >= 10) {
+          if (d.rate > bestRate) { bestRate = d.rate; bestPair = a + ' + ' + b; }
+          if (d.rate < worstRate) { worstRate = d.rate; worstPair = a + ' + ' + b; }
+        }
+      }
+    }
+    if (bestPair) addStat('Most Agreeing', bestPair + ' (' + bestRate + '%)');
+    if (worstPair) addStat('Least Agreeing', worstPair + ' (' + worstRate + '%)');
+
+    // Term range
+    var termYears = [];
+    var seenTerms = {};
+    cases.forEach(function(c) {
+      if (!seenTerms[c.term_year]) { seenTerms[c.term_year] = true; termYears.push(c.term_year); }
+    });
+    termYears.sort(function(a, b) { return a - b; });
+    if (termYears.length > 0) {
+      addStat('Term Coverage', 'OT' + termYears[0] + ' \u2014 OT' + termYears[termYears.length - 1]);
+    }
+
+    detailEl.appendChild(card);
   }
 
   function showCaseDetail(c) {
