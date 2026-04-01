@@ -32,6 +32,13 @@ window.addEventListener('scotusgami-data-ready', function() {
     return [a, b].sort().join('-');
   }
 
+  // Build case-level vote detail lookup for rendering
+  var voteDetailByCase = {};
+  DATA.votes.forEach(function(v) {
+    if (!voteDetailByCase[v.case_id]) voteDetailByCase[v.case_id] = {};
+    voteDetailByCase[v.case_id][v.justice] = v.vote;
+  });
+
   // ============================================
   // COMPUTE FEED
   // ============================================
@@ -588,12 +595,13 @@ window.addEventListener('scotusgami-data-ready', function() {
     { key: 'rate_reversal', label: 'Rate Reversal' }
   ];
 
-  var activeTypes = new Set(allTypes.map(function(t) { return t.key; }));
+  var hiddenByDefault = new Set(['agreement_streak', 'disagreement_streak']);
+  var activeTypes = new Set(allTypes.filter(function(t) { return !hiddenByDefault.has(t.key); }).map(function(t) { return t.key; }));
   var typeButtons = [];
 
   allTypes.forEach(function(t) {
     var btn = document.createElement('button');
-    btn.className = 'feed-filter-btn active';
+    btn.className = 'feed-filter-btn' + (hiddenByDefault.has(t.key) ? '' : ' active');
     btn.textContent = t.label;
     btn.dataset.type = t.key;
     btn.addEventListener('click', function() {
@@ -712,6 +720,78 @@ window.addEventListener('scotusgami-data-ready', function() {
       dateSub.className = 'feed-card-meta';
       dateSub.textContent = first.case_date;
       card.appendChild(dateSub);
+
+      // Case vote summary block
+      var caseVoteDetail = voteDetailByCase[caseId];
+      if (caseVoteDetail) {
+        var majNames = [], conNames = [], disNames = [];
+        Object.keys(caseVoteDetail).sort().forEach(function(j) {
+          var vt = caseVoteDetail[j];
+          if (vt === 'dissent') disNames.push(j);
+          else if (vt === 'majority') majNames.push(j);
+          else conNames.push(j); // concurrence, concurrence in judgment, etc.
+        });
+
+        // Summary text: "5 in the majority, 3 concurrences, 1 dissent"
+        var parts = [];
+        if (majNames.length > 0) parts.push(majNames.length + ' in the majority');
+        if (conNames.length > 0) parts.push(conNames.length + ' concurrence' + (conNames.length > 1 ? 's' : ''));
+        if (disNames.length > 0) parts.push(disNames.length + ' dissent' + (disNames.length > 1 ? 's' : ''));
+        var summaryText = parts.join(', ') + '.';
+
+        // Check if this case has a scotusgami event and add context
+        var scotusgamiItem = items.find(function(it) { return it.type === 'vote_split'; });
+        var coalitionItem = items.find(function(it) { return it.type === 'coalition_count'; });
+        if (scotusgamiItem) {
+          summaryText += ' This is a SCOTUSgami \u2014 this exact coalition has never appeared before.';
+        } else if (coalitionItem) {
+          // Extract count from headline
+          var countMatch = coalitionItem.headline.match(/seen (\d+) times/);
+          if (countMatch) {
+            summaryText += ' This coalition has been seen ' + countMatch[1] + ' times before.';
+          }
+        }
+
+        var summaryDiv = document.createElement('div');
+        summaryDiv.className = 'feed-case-summary';
+        summaryDiv.textContent = summaryText;
+        card.appendChild(summaryDiv);
+
+        // Vote breakdown table
+        if (majNames.length > 0 || conNames.length > 0 || disNames.length > 0) {
+          var table = document.createElement('table');
+          table.className = 'feed-vote-table';
+          var thead = document.createElement('thead');
+          var headRow = document.createElement('tr');
+          var hasColumns = [];
+          if (majNames.length > 0) hasColumns.push({ label: 'Majority', names: majNames });
+          if (conNames.length > 0) hasColumns.push({ label: 'Concurrence', names: conNames });
+          if (disNames.length > 0) hasColumns.push({ label: 'Dissent', names: disNames });
+          hasColumns.forEach(function(col) {
+            var th = document.createElement('th');
+            th.textContent = col.label + ' (' + col.names.length + ')';
+            headRow.appendChild(th);
+          });
+          thead.appendChild(headRow);
+          table.appendChild(thead);
+
+          var tbody = document.createElement('tbody');
+          var maxRows = Math.max(majNames.length, conNames.length, disNames.length);
+          for (var ri = 0; ri < maxRows; ri++) {
+            var tr = document.createElement('tr');
+            hasColumns.forEach(function(col) {
+              var td = document.createElement('td');
+              if (ri < col.names.length) {
+                td.textContent = col.names[ri];
+              }
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          }
+          table.appendChild(tbody);
+          card.appendChild(table);
+        }
+      }
 
       // List all events for this case
       var eventList = document.createElement('ul');
