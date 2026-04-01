@@ -18,8 +18,8 @@ from .models import (
 from .processor import compute_agreements_for_case
 
 SCDB_URL = (
-    "http://scdb.wustl.edu/_brickFiles/2024_01/"
-    "SCDB_2024_01_justiceCentered_Citation.csv.zip"
+    "http://scdb.wustl.edu/_brickFiles/2025_01/"
+    "SCDB_2025_01_justiceCentered_Citation.csv.zip"
 )
 
 JUSTICE_NAME_MAP = {

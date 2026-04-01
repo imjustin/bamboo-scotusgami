@@ -10,7 +10,14 @@ fetch('data/dashboard_data.json').then(function(r) { return r.json(); }).then(fu
 window.DATA = DATA;
 
 var justices = DATA.justices;
-var cases = DATA.cases;
+var cases = DATA.cases.slice().sort(function(a, b) {
+  var pa = a.date.split('/'), pb = b.date.split('/');
+  var ya = parseInt(pa[2], 10) + (parseInt(pa[2], 10) < 50 ? 2000 : 1900);
+  var yb = parseInt(pb[2], 10) + (parseInt(pb[2], 10) < 50 ? 2000 : 1900);
+  var da = new Date(ya, parseInt(pa[0], 10) - 1, parseInt(pa[1], 10));
+  var db = new Date(yb, parseInt(pb[0], 10) - 1, parseInt(pb[1], 10));
+  return da - db;
+});
 var agreements = DATA.agreements;
 var timeline = DATA.timeline;
 var tooltip = d3.select('#tooltip');
@@ -315,18 +322,35 @@ var tlDotsGroup = tlSvg.append('g').attr('class', 'tl-dots');
 // ============================================
 // TERM FILTER STATE
 // ============================================
-var currentTermFilter = 'all';
-var customTermStart = 2005;
-var customTermEnd = 2025;
+var currentTermFilter = 'last10';
+
+// Build sorted list of distinct term years from data
+var availableTermYears = [];
+(function() {
+  var seen = {};
+  cases.forEach(function(c) {
+    if (!seen[c.term_year]) { seen[c.term_year] = true; availableTermYears.push(c.term_year); }
+  });
+  availableTermYears.sort(function(a, b) { return a - b; });
+})();
+
+// Expose filter state globally for other scripts (feed.js)
+window.currentTermFilter = currentTermFilter;
 
 function getTermRange() {
+  var n = availableTermYears.length;
   switch (currentTermFilter) {
-    case 'current': return [2025, 2025];
-    case 'last': return [2024, 2024];
-    case 'last3': return [2023, 2025];
-    case 'custom': return [customTermStart, customTermEnd];
-    case 'all':
-    default: return [2005, 2025];
+    case 'current': return [availableTermYears[n - 1], availableTermYears[n - 1]];
+    case 'last': return [availableTermYears[n - 2], availableTermYears[n - 2]];
+    case 'last3': {
+      var start = availableTermYears[Math.max(0, n - 3)];
+      return [start, availableTermYears[n - 1]];
+    }
+    case 'last10':
+    default: {
+      var start = availableTermYears[Math.max(0, n - 10)];
+      return [start, availableTermYears[n - 1]];
+    }
   }
 }
 
@@ -336,6 +360,9 @@ function getFilteredCases() {
     return c.term_year >= range[0] && c.term_year <= range[1];
   });
 }
+
+// Expose globally for feed.js
+window.getFilteredCases = getFilteredCases;
 
 // Recompute agreement rates from only the cases in the selected term range
 function getFilteredAgreements() {
@@ -386,28 +413,12 @@ function parseTermDate(dateStr) {
 // Term filter controls
 (function() {
   var termSelect = document.getElementById('term-filter');
-  var customInputs = document.getElementById('custom-range-inputs');
-  var termStartInput = document.getElementById('term-start');
-  var termEndInput = document.getElementById('term-end');
 
   termSelect.addEventListener('change', function() {
     currentTermFilter = termSelect.value;
-    if (currentTermFilter === 'custom') {
-      customInputs.style.display = 'inline';
-    } else {
-      customInputs.style.display = 'none';
-    }
+    window.currentTermFilter = currentTermFilter;
     updateAllSelections();
-  });
-
-  termStartInput.addEventListener('change', function() {
-    customTermStart = parseInt(termStartInput.value, 10) || 2005;
-    if (currentTermFilter === 'custom') updateAllSelections();
-  });
-
-  termEndInput.addEventListener('change', function() {
-    customTermEnd = parseInt(termEndInput.value, 10) || 2025;
-    if (currentTermFilter === 'custom') updateAllSelections();
+    window.dispatchEvent(new Event('scotusgami-filter-change'));
   });
 })();
 
@@ -654,9 +665,8 @@ function updateTimeline() {
   // Get filtered cases and build X scale
   var filteredCases = getFilteredCases();
   var filteredCaseIds = new Set(filteredCases.map(function(c) { return c.id; }));
-  var isSingleTerm = (currentTermFilter === 'current' || currentTermFilter === 'last' ||
-    (currentTermFilter === 'custom' && customTermStart === customTermEnd));
-  var isAllTerms = (currentTermFilter === 'all');
+  var isSingleTerm = (currentTermFilter === 'current' || currentTermFilter === 'last');
+  var isAllTerms = (currentTermFilter === 'last10');
 
   var xScale = d3.scalePoint()
     .domain(filteredCases.map(function(c) { return c.id; }))
@@ -718,15 +728,22 @@ function updateTimeline() {
 
     if (tlData.length === 0) return;
 
+    // Sort timeline data to match the chronologically sorted cases array
+    var caseOrder = {};
+    cases.forEach(function(c, idx) { caseOrder[c.id] = idx; });
+    var sortedTlData = tlData.slice().sort(function(a, b) {
+      return (caseOrder[a.case_id] || 0) - (caseOrder[b.case_id] || 0);
+    });
+
     // Compute running rate, then filter to visible cases
     var running = 0;
-    var allPoints = tlData.map(function(d, i) {
+    var allPoints = sortedTlData.map(function(d, i) {
       running += d.agreed;
       return { case_id: d.case_id, rate: (running / (i + 1)) * 100, agreed: d.agreed };
     });
 
     var points = allPoints.filter(function(p) {
-      return filteredCaseIds.has(p.case_id) && xScale(p.case_id) !== undefined;
+      return filteredCaseIds.has(p.case_id);
     });
 
     if (points.length === 0) return;
@@ -743,20 +760,6 @@ function updateTimeline() {
       .attr('stroke', pair.color)
       .attr('stroke-opacity', 1);
 
-    tlDotsGroup.selectAll(null)
-      .data(points)
-      .join('circle')
-      .attr('class', 'timeline-dot')
-      .attr('cx', function(d) { return xScale(d.case_id); })
-      .attr('cy', function(d) { return yScale(d.rate); })
-      .attr('r', 4)
-      .attr('fill', function(d) { return d.agreed ? '#2ea043' : '#da3633'; })
-      .attr('stroke', pair.color)
-      .on('mouseover', function(ev, d) {
-        var c = cases.find(function(c) { return c.id === d.case_id; });
-        showDotTooltip(ev, c ? c.name : '', d.rate, d.agreed);
-      })
-      .on('mouseout', function() { tooltip.style('opacity', 0); });
   });
 }
 

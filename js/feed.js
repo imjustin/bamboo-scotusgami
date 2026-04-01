@@ -327,6 +327,9 @@ window.addEventListener('scotusgami-data-ready', function() {
     return feedItems;
   }
 
+  // Make feed computation available globally
+  window.computeScotusgamiFeed = computeScotusgamiFeed;
+
   // ============================================
   // RENDER FEED
   // ============================================
@@ -342,6 +345,17 @@ window.addEventListener('scotusgami-data-ready', function() {
   title.className = 'panel-title';
   title.textContent = 'SCOTUSgami Feed';
   layout.appendChild(title);
+
+  // Search input for Feed tab
+  var feedSearchInput = document.createElement('input');
+  feedSearchInput.type = 'text';
+  feedSearchInput.id = 'feed-search';
+  feedSearchInput.className = 'tab-search';
+  feedSearchInput.placeholder = 'Search feed...';
+  feedSearchInput.addEventListener('input', function() {
+    renderFeedList();
+  });
+  layout.appendChild(feedSearchInput);
 
   // Controls
   var controls = document.createElement('div');
@@ -425,8 +439,12 @@ window.addEventListener('scotusgami-data-ready', function() {
     while (feedList.firstChild) feedList.removeChild(feedList.firstChild);
 
     var minNovelty = parseInt(noveltySlider.value);
+    var searchTerm = feedSearchInput.value.trim().toLowerCase();
     var filtered = allFeedItems.filter(function(item) {
-      return activeTypes.has(item.type) && item.novelty_score >= minNovelty;
+      if (!activeTypes.has(item.type)) return false;
+      if (item.novelty_score < minNovelty) return false;
+      if (searchTerm && item.case_name.toLowerCase().indexOf(searchTerm) === -1) return false;
+      return true;
     });
 
     if (filtered.length === 0) {
@@ -541,4 +559,144 @@ window.addEventListener('scotusgami-data-ready', function() {
   }
 
   renderFeedList();
+
+  // ============================================
+  // VIZ PANEL FEED (condensed inline feed)
+  // ============================================
+  function renderVizFeed() {
+    var vizContainer = document.getElementById('feed-viz');
+    if (!vizContainer) return;
+
+    while (vizContainer.firstChild) vizContainer.removeChild(vizContainer.firstChild);
+
+    // Determine which cases are in the current term filter
+    var filteredCaseIds = null;
+    if (window.getFilteredCases) {
+      var filteredCases = window.getFilteredCases();
+      filteredCaseIds = new Set(filteredCases.map(function(c) { return c.id; }));
+    }
+
+    var vizItems = allFeedItems.filter(function(item) {
+      if (filteredCaseIds && !filteredCaseIds.has(item.case_id)) return false;
+      return true;
+    });
+
+    if (vizItems.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'pair-detail-placeholder';
+      empty.textContent = 'No feed events for selected term range';
+      vizContainer.appendChild(empty);
+      return;
+    }
+
+    // Group by case_id
+    var caseOrder = [];
+    var caseGroups = {};
+    vizItems.forEach(function(item) {
+      if (!caseGroups[item.case_id]) {
+        caseGroups[item.case_id] = [];
+        caseOrder.push(item.case_id);
+      }
+      caseGroups[item.case_id].push(item);
+    });
+
+    caseOrder.forEach(function(caseId) {
+      var items = caseGroups[caseId];
+      var first = items[0];
+      var hasScotus = items.some(function(it) { return it.is_scotusgami; });
+
+      var card = document.createElement('div');
+      card.className = 'feed-viz-card';
+      if (hasScotus) card.classList.add('scotusgami');
+
+      // Case name as clickable link to Data tab
+      var caseLink = document.createElement('a');
+      caseLink.className = 'feed-viz-card-headline';
+      caseLink.href = '#';
+      caseLink.textContent = first.case_name;
+      caseLink.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        // Switch to Data tab
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
+        var dataBtn = document.querySelector('.tab-btn[data-tab="data"]');
+        if (dataBtn) dataBtn.classList.add('active');
+        var dataTab = document.getElementById('tab-data');
+        if (dataTab) dataTab.classList.add('active');
+        // Find and click the case in the case list
+        var caseListItems = document.querySelectorAll('#case-list li');
+        caseListItems.forEach(function(item) {
+          var datum = d3.select(item).datum();
+          if (datum && datum.id === caseId) {
+            item.click();
+            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      });
+      card.appendChild(caseLink);
+
+      // Date
+      var dateSub = document.createElement('div');
+      dateSub.className = 'feed-viz-card-meta';
+      dateSub.textContent = first.case_date;
+      card.appendChild(dateSub);
+
+      // Compact event list
+      var eventList = document.createElement('ul');
+      eventList.className = 'feed-viz-card-events';
+      items.forEach(function(item) {
+        var li = document.createElement('li');
+
+        var tag = document.createElement('span');
+        tag.className = 'feed-viz-event-tag';
+        if (item.is_scotusgami) tag.classList.add('scotusgami-tag');
+        tag.textContent = item.type.replace(/_/g, ' ');
+        li.appendChild(tag);
+
+        var text = document.createElement('span');
+        text.textContent = item.headline;
+        li.appendChild(text);
+
+        eventList.appendChild(li);
+      });
+      card.appendChild(eventList);
+
+      // Pair agreement rates
+      var vizPairs = {};
+      items.forEach(function(item) {
+        if (item.justices && item.justices.length === 2) {
+          var pk = pairKey(item.justices[0], item.justices[1]);
+          if (!vizPairs[pk]) vizPairs[pk] = pk.split('-');
+        }
+      });
+      var vizPairKeys = Object.keys(vizPairs);
+      if (vizPairKeys.length > 0) {
+        var pairStats = document.createElement('div');
+        pairStats.className = 'feed-pair-stats';
+        vizPairKeys.forEach(function(pk) {
+          var names = vizPairs[pk];
+          var key1 = names[0] + '-' + names[1];
+          var key2 = names[1] + '-' + names[0];
+          var agData = DATA.agreements[key1] || DATA.agreements[key2];
+          if (agData) {
+            var stat = document.createElement('span');
+            stat.className = 'feed-pair-rate';
+            stat.textContent = names[0] + ' + ' + names[1] + ': ' + agData.rate + '%';
+            pairStats.appendChild(stat);
+          }
+        });
+        if (pairStats.childNodes.length > 0) card.appendChild(pairStats);
+      }
+
+      vizContainer.appendChild(card);
+    });
+  }
+
+  // Initial render of viz feed
+  renderVizFeed();
+
+  // Re-render viz feed when term filter changes
+  window.addEventListener('scotusgami-filter-change', function() {
+    renderVizFeed();
+  });
 });

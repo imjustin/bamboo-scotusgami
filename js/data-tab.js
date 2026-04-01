@@ -49,6 +49,25 @@ window.addEventListener('scotusgami-data-ready', function() {
 
   document.getElementById('status-bar').textContent = cases.length + ' cases loaded';
 
+  // Search filter for case list
+  var dataSearchInput = document.getElementById('data-search');
+  if (dataSearchInput) {
+    dataSearchInput.addEventListener('input', function() {
+      var term = dataSearchInput.value.trim().toLowerCase();
+      var caseListItems = document.querySelectorAll('#case-list li');
+      caseListItems.forEach(function(li) {
+        var datum = d3.select(li).datum();
+        if (!datum) return;
+        var name = datum.name.toLowerCase();
+        if (!term || name.indexOf(term) >= 0) {
+          li.style.display = '';
+        } else {
+          li.style.display = 'none';
+        }
+      });
+    });
+  }
+
   function showCaseDetail(c) {
     // Clear existing
     while (detailEl.firstChild) detailEl.removeChild(detailEl.firstChild);

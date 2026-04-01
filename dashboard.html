@@ -15,9 +15,9 @@
 
 <div class="tab-bar">
   <button class="tab-btn active" data-tab="visualize">Visualize</button>
+  <button class="tab-btn" data-tab="feed">Feed</button>
   <button class="tab-btn" data-tab="data">Data</button>
   <button class="tab-btn" data-tab="about">About</button>
-  <button class="tab-btn" data-tab="feed">Feed</button>
 </div>
 
 <div id="tab-visualize" class="tab-content active">
@@ -27,13 +27,8 @@
         <option value="current">Current Term (2025)</option>
         <option value="last">Last Term (2024)</option>
         <option value="last3">Last 3 Terms</option>
-        <option value="all" selected>All Terms</option>
-        <option value="custom">Custom Range</option>
+        <option value="last10" selected>Last 10 Terms</option>
       </select>
-      <span id="custom-range-inputs" style="display:none">
-        <input type="number" id="term-start" min="2005" max="2025" placeholder="Start" value="2005">
-        <input type="number" id="term-end" min="2005" max="2025" placeholder="End" value="2025">
-      </span>
     </div>
   </div>
   <div class="viz-grid">
@@ -50,10 +45,10 @@
       <div class="panel-title">Coalition Network</div>
       <div id="network"></div>
     </div>
-    <div class="panel panel-pair-detail">
-      <div class="panel-title">Pair Detail</div>
-      <div id="pair-detail">
-        <div class="pair-detail-placeholder">Select pairs from the heatmap or network to see details</div>
+    <div class="panel panel-feed-viz">
+      <div class="panel-title">SCOTUSgami Feed</div>
+      <div id="feed-viz">
+        <div class="pair-detail-placeholder">Loading feed...</div>
       </div>
     </div>
     <div class="panel panel-timeline">
@@ -63,6 +58,12 @@
       </div>
       <div id="timeline"></div>
     </div>
+    <div class="panel panel-pair-detail">
+      <div class="panel-title">Pair Detail</div>
+      <div id="pair-detail">
+        <div class="pair-detail-placeholder">Select pairs from the heatmap or network to see details</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -70,6 +71,7 @@
   <div class="data-split">
     <div class="data-left">
       <div class="panel-title">Dataset</div>
+      <input type="text" id="data-search" class="tab-search" placeholder="Search cases...">
       <div id="status-bar" class="status-bar"></div>
       <ul class="case-list" id="case-list"></ul>
     </div>

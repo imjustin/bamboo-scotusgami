@@ -223,14 +223,14 @@
   addList(sec5, [
     'Maintained by Washington University in St. Louis (Harold Spaeth, Lee Epstein, et al.).',
     'The gold standard for empirical Supreme Court research, used in hundreds of published studies.',
-    'Covers October Terms 2005\u20132024 with granular vote codes for every justice on every case.',
+    'Covers October Terms 2005\u20132023 with granular vote codes for every justice on every case.',
     'Each case is coded with 60+ variables per justice-vote, including vote type, opinion assignment, issue area, and disposition.',
     'Vote codes: 1 = majority opinion, 2 = dissent, 3 = regular concurrence, 4 = concurrence in judgment, 5 = concurrence in part and dissent in part, 6 = dissent in part, 7 = jurisdictional dissent, 8 = non-participation.'
   ]);
 
   addSubheading(sec5, 'Supplementary: supremecourt.gov PDF Scraping');
   addList(sec5, [
-    'Used for the current term (2025) where SCDB data is not yet available.',
+    'Used for OT2024 and OT2025 where SCDB data is not yet available.',
     'Slip opinion PDFs are downloaded directly from supremecourt.gov.',
     'Vote blocks are extracted using PyMuPDF and parsed via regex pattern matching.',
     'Less reliable than SCDB for edge cases \u2014 unusual opinion formatting or complex partial concurrences may be miscoded.'
@@ -282,7 +282,7 @@
     'Per curiam opinions (unsigned, issued by the Court as a whole) are currently excluded from analysis due to unreliable vote attribution.',
     'Cases with fewer than 2 participating justices are excluded.',
     'Agreement pairs are only computed for justices who both participated in the same case \u2014 recusals and non-participation reduce pair sample sizes.',
-    'Historical data (October Terms 2005\u20132024) is sourced from the Supreme Court Database; current-term data (2025) comes from PDF scraping.',
+    'Historical data (October Terms 2005\u20132023) is sourced from the Supreme Court Database; OT2024 and OT2025 data comes from PDF scraping of slip opinions.',
     'Concurrence in part / dissent in part is coded as a concurrence (majority-side) for agreement calculation purposes.',
     'All vote data is normalized into a binary same-side / opposite-side classification before agreement rates are computed.'
   ]);
@@ -305,47 +305,8 @@
   layout.appendChild(sec8);
 
   // =============================================
-  // 9. How to Replicate
   // =============================================
-  var sec9 = makeSection('How to Replicate');
-  addParagraph(sec9, 'To reproduce this dashboard locally from scratch:');
-
-  var steps = [
-    '1. Clone the repository',
-    '2. Create a virtual environment:',
-  ];
-  var ol = document.createElement('ol');
-  ol.className = 'about-steps';
-
-  var stepData = [
-    { text: 'Clone the repository.', code: null },
-    { text: 'Create and activate a virtual environment.', code: 'python3 -m venv venv && source venv/bin/activate' },
-    { text: 'Install dependencies.', code: 'pip install -r requirements.txt' },
-    { text: 'Import historical data from the Supreme Court Database.', code: 'python main.py import-scdb' },
-    { text: 'Fetch current-term cases from supremecourt.gov.', code: 'python main.py fetch --term 25' },
-    { text: 'Export the data to JSON for the dashboard.', code: 'python export_data.py' },
-    { text: 'Serve the dashboard locally.', code: 'python3 -m http.server 8787' },
-    { text: 'Open in your browser.', code: 'http://localhost:8787/dashboard.html' }
-  ];
-
-  stepData.forEach(function(step) {
-    var li = document.createElement('li');
-    var spanText = document.createElement('span');
-    spanText.textContent = step.text;
-    li.appendChild(spanText);
-    if (step.code) {
-      var codeEl = document.createElement('code');
-      codeEl.className = 'about-step-code';
-      codeEl.textContent = step.code;
-      li.appendChild(codeEl);
-    }
-    ol.appendChild(li);
-  });
-  sec9.appendChild(ol);
-  layout.appendChild(sec9);
-
-  // =============================================
-  // 10. Credits & Sources
+  // 9. Credits & Sources
   // =============================================
   var sec10 = makeSection('Credits & Sources');
   addList(sec10, [
