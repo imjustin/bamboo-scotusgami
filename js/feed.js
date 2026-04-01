@@ -39,6 +39,86 @@ window.addEventListener('scotusgami-data-ready', function() {
     voteDetailByCase[v.case_id][v.justice] = v.vote;
   });
 
+  // Shared: build vote summary text and table for a case
+  // feedItems is optional — pass the grouped items for a case to get scorigami context
+  function buildVoteSummary(caseId, feedItems) {
+    var caseVotes = voteDetailByCase[caseId];
+    if (!caseVotes) return null;
+
+    var majNames = [], conNames = [], disNames = [];
+    Object.keys(caseVotes).sort().forEach(function(j) {
+      var vt = caseVotes[j];
+      if (vt === 'dissent') disNames.push(j);
+      else if (vt === 'majority') majNames.push(j);
+      else conNames.push(j);
+    });
+
+    // Summary text
+    var parts = [];
+    if (majNames.length > 0) parts.push(majNames.length + ' in the majority');
+    if (conNames.length > 0) parts.push(conNames.length + ' concurrence' + (conNames.length > 1 ? 's' : ''));
+    if (disNames.length > 0) parts.push(disNames.length + ' dissent' + (disNames.length > 1 ? 's' : ''));
+    var summaryText = parts.join(', ') + '.';
+
+    // Scorigami context from feed items
+    if (feedItems) {
+      var scotusgamiItem = feedItems.find(function(it) { return it.type === 'vote_split'; });
+      var coalitionItem = feedItems.find(function(it) { return it.type === 'coalition_count'; });
+      if (disNames.length === 0) {
+        summaryText += ' Unanimous — not a SCOTUSgami.';
+      } else if (scotusgamiItem) {
+        summaryText += ' This is a SCOTUSgami \u2014 this exact coalition has never appeared before.';
+      } else if (coalitionItem) {
+        var countMatch = coalitionItem.headline.match(/seen (\d+) times/);
+        if (countMatch) {
+          summaryText += ' Not a SCOTUSgami \u2014 this coalition has been seen ' + countMatch[1] + ' times before.';
+        } else {
+          summaryText += ' Not a SCOTUSgami.';
+        }
+      }
+    }
+
+    // Build table element
+    var table = null;
+    if (majNames.length > 0 || conNames.length > 0 || disNames.length > 0) {
+      table = document.createElement('table');
+      table.className = 'feed-vote-table';
+      var thead = document.createElement('thead');
+      var headRow = document.createElement('tr');
+      var hasColumns = [];
+      if (majNames.length > 0) hasColumns.push({ label: 'Majority', names: majNames });
+      if (conNames.length > 0) hasColumns.push({ label: 'Concurrence', names: conNames });
+      if (disNames.length > 0) hasColumns.push({ label: 'Dissent', names: disNames });
+      hasColumns.forEach(function(col) {
+        var th = document.createElement('th');
+        th.textContent = col.label + ' (' + col.names.length + ')';
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+
+      var tbody = document.createElement('tbody');
+      var maxRows = Math.max(majNames.length, conNames.length, disNames.length);
+      for (var ri = 0; ri < maxRows; ri++) {
+        var tr = document.createElement('tr');
+        hasColumns.forEach(function(col) {
+          var td = document.createElement('td');
+          if (ri < col.names.length) {
+            td.textContent = col.names[ri];
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+    }
+
+    return { text: summaryText, table: table };
+  }
+
+  // Expose for data-tab.js to use
+  window.buildVoteSummary = buildVoteSummary;
+
   // ============================================
   // COMPUTE FEED
   // ============================================
@@ -546,6 +626,15 @@ window.addEventListener('scotusgami-data-ready', function() {
   // RENDER FEED
   // ============================================
   var allFeedItems = computeScotusgamiFeed();
+
+  // Build feed-items-by-case lookup for cross-tab use
+  var feedItemsByCase = {};
+  allFeedItems.forEach(function(item) {
+    if (!feedItemsByCase[item.case_id]) feedItemsByCase[item.case_id] = [];
+    feedItemsByCase[item.case_id].push(item);
+  });
+  window.feedItemsByCase = feedItemsByCase;
+
   var feedContainer = document.getElementById('tab-feed');
   if (!feedContainer) return;
 
@@ -721,76 +810,14 @@ window.addEventListener('scotusgami-data-ready', function() {
       dateSub.textContent = first.case_date;
       card.appendChild(dateSub);
 
-      // Case vote summary block
-      var caseVoteDetail = voteDetailByCase[caseId];
-      if (caseVoteDetail) {
-        var majNames = [], conNames = [], disNames = [];
-        Object.keys(caseVoteDetail).sort().forEach(function(j) {
-          var vt = caseVoteDetail[j];
-          if (vt === 'dissent') disNames.push(j);
-          else if (vt === 'majority') majNames.push(j);
-          else conNames.push(j); // concurrence, concurrence in judgment, etc.
-        });
-
-        // Summary text: "5 in the majority, 3 concurrences, 1 dissent"
-        var parts = [];
-        if (majNames.length > 0) parts.push(majNames.length + ' in the majority');
-        if (conNames.length > 0) parts.push(conNames.length + ' concurrence' + (conNames.length > 1 ? 's' : ''));
-        if (disNames.length > 0) parts.push(disNames.length + ' dissent' + (disNames.length > 1 ? 's' : ''));
-        var summaryText = parts.join(', ') + '.';
-
-        // Check if this case has a scotusgami event and add context
-        var scotusgamiItem = items.find(function(it) { return it.type === 'vote_split'; });
-        var coalitionItem = items.find(function(it) { return it.type === 'coalition_count'; });
-        if (scotusgamiItem) {
-          summaryText += ' This is a SCOTUSgami \u2014 this exact coalition has never appeared before.';
-        } else if (coalitionItem) {
-          // Extract count from headline
-          var countMatch = coalitionItem.headline.match(/seen (\d+) times/);
-          if (countMatch) {
-            summaryText += ' This coalition has been seen ' + countMatch[1] + ' times before.';
-          }
-        }
-
+      // Case vote summary block (shared builder)
+      var voteSummary = buildVoteSummary(caseId, items);
+      if (voteSummary) {
         var summaryDiv = document.createElement('div');
         summaryDiv.className = 'feed-case-summary';
-        summaryDiv.textContent = summaryText;
+        summaryDiv.textContent = voteSummary.text;
         card.appendChild(summaryDiv);
-
-        // Vote breakdown table
-        if (majNames.length > 0 || conNames.length > 0 || disNames.length > 0) {
-          var table = document.createElement('table');
-          table.className = 'feed-vote-table';
-          var thead = document.createElement('thead');
-          var headRow = document.createElement('tr');
-          var hasColumns = [];
-          if (majNames.length > 0) hasColumns.push({ label: 'Majority', names: majNames });
-          if (conNames.length > 0) hasColumns.push({ label: 'Concurrence', names: conNames });
-          if (disNames.length > 0) hasColumns.push({ label: 'Dissent', names: disNames });
-          hasColumns.forEach(function(col) {
-            var th = document.createElement('th');
-            th.textContent = col.label + ' (' + col.names.length + ')';
-            headRow.appendChild(th);
-          });
-          thead.appendChild(headRow);
-          table.appendChild(thead);
-
-          var tbody = document.createElement('tbody');
-          var maxRows = Math.max(majNames.length, conNames.length, disNames.length);
-          for (var ri = 0; ri < maxRows; ri++) {
-            var tr = document.createElement('tr');
-            hasColumns.forEach(function(col) {
-              var td = document.createElement('td');
-              if (ri < col.names.length) {
-                td.textContent = col.names[ri];
-              }
-              tr.appendChild(td);
-            });
-            tbody.appendChild(tr);
-          }
-          table.appendChild(tbody);
-          card.appendChild(table);
-        }
+        if (voteSummary.table) card.appendChild(voteSummary.table);
       }
 
       // List all events for this case
@@ -952,51 +979,14 @@ window.addEventListener('scotusgami-data-ready', function() {
       dateSub.textContent = first.case_date;
       card.appendChild(dateSub);
 
-      // Compact event list
-      var eventList = document.createElement('ul');
-      eventList.className = 'feed-viz-card-events';
-      items.forEach(function(item) {
-        var li = document.createElement('li');
-
-        var tag = document.createElement('span');
-        tag.className = 'feed-viz-event-tag';
-        if (item.is_scotusgami) tag.classList.add('scotusgami-tag');
-        tag.textContent = item.type.replace(/_/g, ' ');
-        li.appendChild(tag);
-
-        var text = document.createElement('span');
-        text.textContent = item.headline;
-        li.appendChild(text);
-
-        eventList.appendChild(li);
-      });
-      card.appendChild(eventList);
-
-      // Pair agreement rates
-      var vizPairs = {};
-      items.forEach(function(item) {
-        if (item.justices && item.justices.length === 2) {
-          var pk = pairKey(item.justices[0], item.justices[1]);
-          if (!vizPairs[pk]) vizPairs[pk] = pk.split('-');
-        }
-      });
-      var vizPairKeys = Object.keys(vizPairs);
-      if (vizPairKeys.length > 0) {
-        var pairStats = document.createElement('div');
-        pairStats.className = 'feed-pair-stats';
-        vizPairKeys.forEach(function(pk) {
-          var names = vizPairs[pk];
-          var key1 = names[0] + '-' + names[1];
-          var key2 = names[1] + '-' + names[0];
-          var agData = DATA.agreements[key1] || DATA.agreements[key2];
-          if (agData) {
-            var stat = document.createElement('span');
-            stat.className = 'feed-pair-rate';
-            stat.textContent = names[0] + ' + ' + names[1] + ': ' + agData.rate + '%';
-            pairStats.appendChild(stat);
-          }
-        });
-        if (pairStats.childNodes.length > 0) card.appendChild(pairStats);
+      // Vote summary + table only (detailed events are in the Feed tab)
+      var vizSummary = buildVoteSummary(caseId, items);
+      if (vizSummary) {
+        var vizSummaryDiv = document.createElement('div');
+        vizSummaryDiv.className = 'feed-case-summary';
+        vizSummaryDiv.textContent = vizSummary.text;
+        card.appendChild(vizSummaryDiv);
+        if (vizSummary.table) card.appendChild(vizSummary.table);
       }
 
       vizContainer.appendChild(card);

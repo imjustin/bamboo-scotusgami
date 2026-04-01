@@ -177,6 +177,19 @@ window.addEventListener('scotusgami-data-ready', function() {
     splitDiv.textContent = majCount + '-' + disCount;
     detailEl.appendChild(splitDiv);
 
+    // Vote summary with scorigami context (from feed.js shared builder)
+    if (window.buildVoteSummary && window.feedItemsByCase) {
+      var caseFeedItems = window.feedItemsByCase[c.id] || [];
+      var voteSummary = window.buildVoteSummary(c.id, caseFeedItems);
+      if (voteSummary) {
+        var summaryDiv = document.createElement('div');
+        summaryDiv.className = 'feed-case-summary';
+        summaryDiv.style.marginTop = '8px';
+        summaryDiv.textContent = voteSummary.text;
+        detailEl.appendChild(summaryDiv);
+      }
+    }
+
     var breakdown = document.createElement('div');
     breakdown.className = 'vote-breakdown';
 
