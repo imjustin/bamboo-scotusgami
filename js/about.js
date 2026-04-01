@@ -145,6 +145,35 @@
   layout.appendChild(sec1);
 
   // =============================================
+  // 1b. When Is It a SCOTUSgami?
+  // =============================================
+  var sec1b = makeSection('When Is It a SCOTUSgami?');
+  addParagraph(sec1b, 'A SCOTUSgami occurs when a case produces an event the dashboard has never seen before. The most common trigger is a new coalition \u2014 an exact combination of justices on the majority and dissent sides that has never previously appeared in the dataset.');
+
+  addSubheading(sec1b, 'What counts as a coalition?');
+  addParagraph(sec1b, 'A coalition is the specific set of justices on each side of a decision. Majority and concurrence votes are grouped together as the majority side; only dissent is the opposite side. The coalition tracks exactly who is on each side, not just the numeric split.');
+
+  addSubheading(sec1b, 'Examples');
+  addBoldLine(sec1b, 'SCOTUSgami:', 'A 6\u20133 decision with Roberts, Thomas, Alito, Gorsuch, Kavanaugh, and Kagan in the majority, with Sotomayor, Jackson, and Barrett dissenting. If Barrett has never before dissented alongside the two liberal justices while Kagan sided with the conservatives, this exact grouping is new \u2014 it\u2019s a SCOTUSgami.');
+  addBoldLine(sec1b, 'SCOTUSgami:', 'Thomas and Sotomayor agree for the first time ever. A cross-wing first agreement is always a SCOTUSgami, regardless of the overall vote split.');
+  addBoldLine(sec1b, 'SCOTUSgami:', 'Gorsuch and Kavanaugh disagree for the first time. A same-wing first disagreement is always a SCOTUSgami.');
+  addBoldLine(sec1b, 'Not a SCOTUSgami:', 'A 9\u20130 unanimous decision. Every justice is on the same side, so there\u2019s no coalition split to track. Unanimous cases are logged but are never SCOTUSgami events.');
+  addBoldLine(sec1b, 'Not a SCOTUSgami:', 'A 6\u20133 with Roberts, Thomas, Alito, Gorsuch, Kavanaugh, Barrett in the majority and Sotomayor, Kagan, Jackson dissenting. This is the \u201Cdefault\u201D ideological split and has occurred dozens of times \u2014 it\u2019s tracked with a coalition count but is not novel.');
+  addBoldLine(sec1b, 'Not a SCOTUSgami:', 'Thomas and Alito agree for the 400th time. Same-wing agreements are expected and score low. Only their first-ever agreement was a SCOTUSgami.');
+
+  addSubheading(sec1b, 'Other SCOTUSgami triggers');
+  addList(sec1b, [
+    'First-ever agreement between a cross-wing pair (e.g., Thomas + Sotomayor)',
+    'First-ever disagreement between a same-wing pair (e.g., Gorsuch + Kavanaugh)',
+    'A sole dissenter pair that crosses ideological lines (e.g., Thomas + Kagan dissenting together)',
+    'An unusual coalition with 3+ dissenters spanning both wings',
+    'A novel cross-wing agreement streak milestone (e.g., 5 consecutive agreements between Thomas and Kagan)'
+  ]);
+
+  addParagraph(sec1b, 'The key idea: if the dashboard has seen this exact pattern before, it\u2019s not a SCOTUSgami. If it\u2019s genuinely new \u2014 a combination of justices, a first-time event, or a record streak \u2014 it is.');
+  layout.appendChild(sec1b);
+
+  // =============================================
   // Disclaimer
   // =============================================
   var disclaimer = document.createElement('div');

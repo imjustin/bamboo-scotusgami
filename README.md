@@ -10,6 +10,38 @@ Unlike most SCOTUS trackers that focus on case outcomes or individual justice vo
 
 The dashboard covers every argued case from October Term 2005 through the current term, encompassing all 16 justices who have served on the Roberts Court.
 
+## When Is It a SCOTUSgami?
+
+A SCOTUSgami occurs when a case produces an event the dashboard has never seen before. The most common trigger is a new coalition — an exact combination of justices on the majority and dissent sides that has never previously appeared in the dataset.
+
+### What counts as a coalition?
+
+A coalition is the specific set of justices on each side of a decision. Majority and concurrence votes are grouped together as the majority side; only dissent is the opposite side. The coalition tracks exactly who is on each side, not just the numeric split.
+
+### Examples
+
+**SCOTUSgami:** A 6–3 decision with Roberts, Thomas, Alito, Gorsuch, Kavanaugh, and Kagan in the majority, with Sotomayor, Jackson, and Barrett dissenting. If Barrett has never before dissented alongside the two liberal justices while Kagan sided with the conservatives, this exact grouping is new — it's a SCOTUSgami.
+
+**SCOTUSgami:** Thomas and Sotomayor agree for the first time ever. A cross-wing first agreement is always a SCOTUSgami, regardless of the overall vote split.
+
+**SCOTUSgami:** Gorsuch and Kavanaugh disagree for the first time. A same-wing first disagreement is always a SCOTUSgami.
+
+**Not a SCOTUSgami:** A 9–0 unanimous decision. Every justice is on the same side, so there's no coalition split to track. Unanimous cases are logged but are never SCOTUSgami events.
+
+**Not a SCOTUSgami:** A 6–3 with Roberts, Thomas, Alito, Gorsuch, Kavanaugh, Barrett in the majority and Sotomayor, Kagan, Jackson dissenting. This is the "default" ideological split and has occurred dozens of times — it's tracked with a coalition count but is not novel.
+
+**Not a SCOTUSgami:** Thomas and Alito agree for the 400th time. Same-wing agreements are expected and score low. Only their first-ever agreement was a SCOTUSgami.
+
+### Other SCOTUSgami triggers
+
+- First-ever agreement between a cross-wing pair (e.g., Thomas + Sotomayor)
+- First-ever disagreement between a same-wing pair (e.g., Gorsuch + Kavanaugh)
+- A sole dissenter pair that crosses ideological lines (e.g., Thomas + Kagan dissenting together)
+- An unusual coalition with 3+ dissenters spanning both wings
+- A novel cross-wing agreement streak milestone (e.g., 5 consecutive agreements between Thomas and Kagan)
+
+The key idea: if the dashboard has seen this exact pattern before, it's not a SCOTUSgami. If it's genuinely new — a combination of justices, a first-time event, or a record streak — it is.
+
 ## Disclaimer
 
 This data has not been manually audited and is subject to potential inaccuracies. Vote classifications are sourced from the Supreme Court Database (SCDB) and automated PDF parsing, neither of which have been individually verified against official court records. This dashboard is an exploratory visualization project and should not be relied upon for legal research, academic citation, or anything other than late night vibes.
