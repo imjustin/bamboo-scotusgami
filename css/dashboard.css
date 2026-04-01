@@ -282,6 +282,9 @@ header .subtitle { font-size: 14px; color: #8b949e; }
 .feed-card.accent-scotusgami { border-left: 3px solid #d4a017; }
 .feed-card.accent-routine { border-left: 3px solid #6e7681; }
 .feed-card-headline { font-size: 14px; font-weight: 600; color: #f0f6fc; margin-bottom: 4px; }
+.feed-card-score { font-size: 11px; font-weight: 400; color: #8b949e; margin-left: 6px; }
+.feed-filter-scotusgami { border-color: #d4a017 !important; color: #d4a017; margin-right: 8px; }
+.feed-filter-scotusgami.active { background: #d4a017; color: #0d1117; border-color: #d4a017 !important; }
 .feed-card-meta { font-size: 11px; color: #8b949e; margin-bottom: 6px; }
 .feed-card-detail { font-size: 13px; color: #c9d1d9; line-height: 1.5; margin-bottom: 8px; }
 .feed-card-badges { display: flex; flex-wrap: wrap; gap: 4px; }

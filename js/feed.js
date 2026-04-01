@@ -662,6 +662,18 @@ window.addEventListener('scotusgami-data-ready', function() {
   var controls = document.createElement('div');
   controls.className = 'feed-controls';
 
+  // SCOTUSgami-only toggle
+  var scotusgamiOnly = false;
+  var scotusgamiBtn = document.createElement('button');
+  scotusgamiBtn.className = 'feed-filter-btn feed-filter-scotusgami';
+  scotusgamiBtn.textContent = 'SCOTUSgami Only';
+  scotusgamiBtn.addEventListener('click', function() {
+    scotusgamiOnly = !scotusgamiOnly;
+    scotusgamiBtn.classList.toggle('active', scotusgamiOnly);
+    renderFeedList();
+  });
+  controls.appendChild(scotusgamiBtn);
+
   // Type filter buttons
   var typeLabel = document.createElement('label');
   typeLabel.textContent = 'Types:';
@@ -783,6 +795,13 @@ window.addEventListener('scotusgami-data-ready', function() {
       caseGroups[item.case_id].push(item);
     });
 
+    // Filter to SCOTUSgami-only cases if toggled
+    if (scotusgamiOnly) {
+      caseOrder = caseOrder.filter(function(caseId) {
+        return caseGroups[caseId].some(function(it) { return it.is_scotusgami; });
+      });
+    }
+
     caseOrder.forEach(function(caseId) {
       var items = caseGroups[caseId];
       var first = items[0];
@@ -798,10 +817,17 @@ window.addEventListener('scotusgami-data-ready', function() {
         if (accentClass) card.classList.add(accentClass);
       }
 
-      // Case name as title
+      // Case name + max novelty score
+      var maxScore = Math.max.apply(null, items.map(function(it) { return it.novelty_score; }));
       var caseTitle = document.createElement('div');
       caseTitle.className = 'feed-card-headline';
-      caseTitle.textContent = first.case_name;
+      var caseName = document.createElement('span');
+      caseName.textContent = first.case_name;
+      caseTitle.appendChild(caseName);
+      var scoreSpan = document.createElement('span');
+      scoreSpan.className = 'feed-card-score';
+      scoreSpan.textContent = ' (Score: ' + maxScore + ')';
+      caseTitle.appendChild(scoreSpan);
       card.appendChild(caseTitle);
 
       // Date as subtitle
