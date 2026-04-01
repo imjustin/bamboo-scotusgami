@@ -35,19 +35,63 @@ window.addEventListener('scotusgami-data-ready', function() {
   // ============================================
   // COMPUTE FEED
   // ============================================
+
+  // #3: outcome-based agreement — majority+concurrence = same side, only dissent is opposite
+  function isSameSide(voteA, voteB) {
+    var dissA = (voteA === 'dissent');
+    var dissB = (voteB === 'dissent');
+    return dissA === dissB;
+  }
+
+  // #1: Build a coalition signature for scorigami tracking
+  function coalitionSignature(caseVotes, justiceNames) {
+    var majority = [];
+    var dissent = [];
+    justiceNames.slice().sort().forEach(function(j) {
+      if (caseVotes[j] === 'dissent') {
+        dissent.push(j);
+      } else {
+        majority.push(j);
+      }
+    });
+    // Only track non-unanimous splits
+    if (dissent.length === 0) return null;
+    return majority.join(',') + '|' + dissent.join(',');
+  }
+
+  // #6: Determine the majority bloc wing for defection detection
+  function getBlocWing(caseVotes) {
+    var majCon = 0, majLib = 0;
+    Object.keys(caseVotes).forEach(function(j) {
+      if (caseVotes[j] !== 'dissent') {
+        if (getWing(j) === 'conservative') majCon++;
+        if (getWing(j) === 'liberal') majLib++;
+      }
+    });
+    if (majCon > majLib) return 'conservative';
+    if (majLib > majCon) return 'liberal';
+    return null;
+  }
+
   function computeScotusgamiFeed() {
     var cases = DATA.cases;
     var votes = DATA.votes;
     var feedItems = [];
 
     // Track state across cases
-    var pairFirstAgreement = {};  // pairKey -> bool (already had first agreement)
+    var pairFirstAgreement = {};
     var pairFirstDisagreement = {};
-    var pairAgreeStreak = {};     // pairKey -> current consecutive agreements
-    var pairDisagreeStreak = {};  // pairKey -> current consecutive disagreements
-    var pairAgreed = {};          // pairKey -> total agreed
-    var pairTotal = {};           // pairKey -> total co-participated
-    var seenScotusEvents = new Set(); // track unique event types for is_scotusgami
+    var pairAgreeStreak = {};
+    var pairDisagreeStreak = {};
+    var pairPeakAgreeStreak = {};   // #5: track peak for streak-breaking
+    var pairPeakDisagreeStreak = {};
+    var pairAgreed = {};
+    var pairTotal = {};
+    var pairPrevRate = {};          // #7: track previous rate for reversal detection
+    var pairRateDirection = {};     // #7: 'rising', 'falling', or null
+    var seenScotusEvents = new Set();
+    var seenCoalitions = new Set(); // #1: track unique coalition compositions
+    var unanimousPerTerm = {};      // #2: count unanimousper term
 
     // Index votes by case_id -> {justice: vote_type}
     var votesByCase = {};
@@ -68,26 +112,60 @@ window.addEventListener('scotusgami-data-ready', function() {
 
       var justiceNames = Object.keys(caseVotes);
       var majorityJustices = [];
-      var nonMajorityJustices = [];
       var dissenters = [];
 
       justiceNames.forEach(function(j) {
         var vtype = caseVotes[j];
-        if (vtype === 'majority') {
-          majorityJustices.push(j);
+        if (vtype === 'dissent') {
+          dissenters.push(j);
         } else {
-          nonMajorityJustices.push(j);
-          if (vtype === 'dissent') {
-            dissenters.push(j);
-          }
+          majorityJustices.push(j);
         }
       });
 
-      // Check for unanimous decision
-      if (nonMajorityJustices.length === 0 && justiceNames.length >= 9) {
+      var termYear = caseObj.term_year;
+
+      // #1: Vote split pattern tracking (true scorigami)
+      var sig = coalitionSignature(caseVotes, justiceNames);
+      if (sig) {
+        var isNewCoalition = !seenCoalitions.has(sig);
+        if (isNewCoalition) {
+          seenCoalitions.add(sig);
+          var splitLabel = majorityJustices.length + '-' + dissenters.length;
+          // Higher score for close splits
+          var closeness = Math.min(majorityJustices.length, dissenters.length);
+          var sigScore = 50 + closeness * 8;
+          // Extra points if cross-wing coalition
+          var majWings = { conservative: 0, liberal: 0 };
+          majorityJustices.forEach(function(j) { var w = getWing(j); if (majWings[w] !== undefined) majWings[w]++; });
+          var isCrossWingCoalition = majWings.conservative > 0 && majWings.liberal > 0;
+          if (isCrossWingCoalition && dissenters.length >= 2) sigScore += 15;
+          feedItems.push({
+            case_id: caseObj.id,
+            case_name: caseObj.name,
+            case_date: caseObj.date,
+            type: 'vote_split',
+            is_scotusgami: true,
+            headline: 'New ' + splitLabel + ' coalition' + (isCrossWingCoalition ? ' (cross-wing majority)' : ''),
+            detail: 'First time this exact ' + splitLabel + ' grouping has appeared.',
+            justices: justiceNames,
+            novelty_score: Math.min(95, sigScore)
+          });
+        }
+      }
+
+      // #2: Unanimous with term-scoped throttling
+      if (dissenters.length === 0 && justiceNames.length >= 9) {
+        if (!unanimousPerTerm[termYear]) unanimousPerTerm[termYear] = 0;
+        unanimousPerTerm[termYear]++;
+        var termCount = unanimousPerTerm[termYear];
         var eventKey = 'unanimous-' + justiceNames.length;
         var isNovel = !seenScotusEvents.has(eventKey);
         if (isNovel) seenScotusEvents.add(eventKey);
+        var unanScore;
+        if (termCount === 1) unanScore = isNovel ? 60 : 45;
+        else if (termCount <= 3) unanScore = 15;
+        else unanScore = 5;
         feedItems.push({
           case_id: caseObj.id,
           case_name: caseObj.name,
@@ -95,9 +173,9 @@ window.addEventListener('scotusgami-data-ready', function() {
           type: 'unanimous',
           is_scotusgami: isNovel,
           headline: 'Unanimous: All ' + justiceNames.length + ' justices agree',
-          detail: caseObj.name + ' decided unanimously.',
+          detail: caseObj.name + ' decided unanimously. (#' + termCount + ' this term)',
           justices: justiceNames,
-          novelty_score: isNovel ? 60 : 20
+          novelty_score: unanScore
         });
       }
 
@@ -166,20 +244,63 @@ window.addEventListener('scotusgami-data-ready', function() {
         }
       }
 
+      // #6: Bloc defection detection
+      var majBlocWing = getBlocWing(caseVotes);
+      if (majBlocWing && dissenters.length >= 1 && dissenters.length <= 4) {
+        // Check for justices on majority side who are from the minority bloc
+        var defectors = [];
+        majorityJustices.forEach(function(j) {
+          var w = getWing(j);
+          if (w !== 'unknown' && w !== majBlocWing) {
+            defectors.push(j);
+          }
+        });
+        // Also check dissenters from majority bloc
+        dissenters.forEach(function(j) {
+          var w = getWing(j);
+          if (w !== 'unknown' && w === majBlocWing) {
+            defectors.push(j);
+          }
+        });
+        defectors.forEach(function(defector) {
+          var defectorVote = caseVotes[defector];
+          var defWing = getWing(defector);
+          var crossedTo = (defectorVote === 'dissent') ? 'dissent' : 'majority';
+          var eventKeyD = 'defection-' + defector + '-' + caseObj.id;
+          var isNovelD = !seenScotusEvents.has(eventKeyD);
+          seenScotusEvents.add(eventKeyD);
+          // Only fire for close splits (5-4, 6-3, 5-3)
+          if (dissenters.length >= 2) {
+            feedItems.push({
+              case_id: caseObj.id,
+              case_name: caseObj.name,
+              case_date: caseObj.date,
+              type: 'bloc_defection',
+              is_scotusgami: false,
+              headline: defector + ' crosses to join ' + crossedTo,
+              detail: defWing.charAt(0).toUpperCase() + defWing.slice(1) + ' ' + defector + ' voted with the ' + crossedTo + ' in a ' + majorityJustices.length + '-' + dissenters.length + ' decision.',
+              justices: [defector],
+              novelty_score: dissenters.length >= 3 ? 55 : 65
+            });
+          }
+        });
+      }
+
       // Pairwise analysis
       for (var ii = 0; ii < justiceNames.length; ii++) {
         for (var jj = ii + 1; jj < justiceNames.length; jj++) {
           var a = justiceNames[ii], b = justiceNames[jj];
           var pk = pairKey(a, b);
           var voteA = caseVotes[a], voteB = caseVotes[b];
-          var sameSide = (voteA === 'majority' && voteB === 'majority') ||
-                         (voteA !== 'majority' && voteB !== 'majority');
+          var sameSide = isSameSide(voteA, voteB); // #3: fixed
 
           if (!pairTotal[pk]) {
             pairTotal[pk] = 0;
             pairAgreed[pk] = 0;
             pairAgreeStreak[pk] = 0;
             pairDisagreeStreak[pk] = 0;
+            pairPeakAgreeStreak[pk] = 0;
+            pairPeakDisagreeStreak[pk] = 0;
           }
 
           pairTotal[pk]++;
@@ -187,55 +308,76 @@ window.addEventListener('scotusgami-data-ready', function() {
             pairAgreed[pk]++;
           }
 
-          // First agreement
+          // #8: First agreement for ALL pairs
           if (sameSide && !pairFirstAgreement[pk]) {
             pairFirstAgreement[pk] = true;
             var crossW = isCrossWing(a, b);
-            var eventKey5 = 'first-agree-' + pk;
-            var isNovel5 = !seenScotusEvents.has(eventKey5);
-            seenScotusEvents.add(eventKey5);
-            if (crossW) {
+            seenScotusEvents.add('first-agree-' + pk);
+            var faScore = crossW ? 75 : 30; // lower score for expected same-wing agreement
+            if (crossW || (getWing(a) !== 'unknown' && getWing(b) !== 'unknown')) {
               feedItems.push({
                 case_id: caseObj.id,
                 case_name: caseObj.name,
                 case_date: caseObj.date,
                 type: 'first_agreement',
-                is_scotusgami: true,
-                headline: 'First agreement: ' + a + ' and ' + b,
-                detail: 'Cross-wing pair ' + a + ' and ' + b + ' agree for the first time in ' + caseObj.name + '.',
+                is_scotusgami: crossW,
+                headline: 'First agreement: ' + a + ' and ' + b + (crossW ? ' (cross-wing)' : ''),
+                detail: (crossW ? 'Cross-wing pair ' : '') + a + ' and ' + b + ' agree for the first time in ' + caseObj.name + '.',
                 justices: [a, b],
-                novelty_score: 75
+                novelty_score: faScore
               });
             }
           }
 
-          // First disagreement
+          // #8: First disagreement for ALL pairs
           if (!sameSide && !pairFirstDisagreement[pk]) {
             pairFirstDisagreement[pk] = true;
-            var sameWing = !isCrossWing(a, b) && getWing(a) !== 'unknown';
-            var eventKey6 = 'first-disagree-' + pk;
-            seenScotusEvents.add(eventKey6);
-            if (sameWing) {
+            var sameWing = !isCrossWing(a, b) && getWing(a) !== 'unknown' && getWing(b) !== 'unknown';
+            seenScotusEvents.add('first-disagree-' + pk);
+            var fdScore = sameWing ? 70 : 25; // lower score for expected cross-wing disagreement
+            if (sameWing || (getWing(a) !== 'unknown' && getWing(b) !== 'unknown')) {
               feedItems.push({
                 case_id: caseObj.id,
                 case_name: caseObj.name,
                 case_date: caseObj.date,
                 type: 'first_disagreement',
-                is_scotusgami: true,
-                headline: 'First split: ' + a + ' and ' + b,
-                detail: 'Same-wing pair ' + a + ' and ' + b + ' disagree for the first time in ' + caseObj.name + '.',
+                is_scotusgami: sameWing,
+                headline: 'First split: ' + a + ' and ' + b + (sameWing ? ' (same-wing)' : ''),
+                detail: (sameWing ? 'Same-wing pair ' : '') + a + ' and ' + b + ' disagree for the first time in ' + caseObj.name + '.',
                 justices: [a, b],
-                novelty_score: 70
+                novelty_score: fdScore
               });
             }
           }
 
-          // Agreement streaks
+          // Streaks + #5 streak-breaking
           if (sameSide) {
+            var prevDisStreak = pairDisagreeStreak[pk];
+            // #5: Check if a notable disagreement streak just ended
+            if (prevDisStreak >= 3) {
+              var peakDis = pairPeakDisagreeStreak[pk];
+              feedItems.push({
+                case_id: caseObj.id,
+                case_name: caseObj.name,
+                case_date: caseObj.date,
+                type: 'streak_broken',
+                is_scotusgami: false,
+                headline: a + ' and ' + b + ' end ' + prevDisStreak + '-case disagreement streak',
+                detail: 'After disagreeing ' + prevDisStreak + ' times in a row, the pair agrees in ' + caseObj.name + '.',
+                justices: [a, b],
+                novelty_score: Math.min(75, 30 + prevDisStreak * 5)
+              });
+            }
+
             pairAgreeStreak[pk]++;
             pairDisagreeStreak[pk] = 0;
+            if (pairAgreeStreak[pk] > pairPeakAgreeStreak[pk]) pairPeakAgreeStreak[pk] = pairAgreeStreak[pk];
             var streak = pairAgreeStreak[pk];
-            if (streak === 10 || streak === 15 || streak === 20 || streak === 25 || streak === 30) {
+
+            // #4: Lower threshold for cross-wing agree streaks to 5
+            var crossPair = isCrossWing(a, b);
+            var agreeThresholds = crossPair ? [5, 10, 15, 20, 25, 30] : [10, 15, 20, 25, 30];
+            if (agreeThresholds.indexOf(streak) >= 0) {
               var eventKey7 = 'agree-streak-' + pk + '-' + streak;
               var isNovel7 = !seenScotusEvents.has(eventKey7);
               seenScotusEvents.add(eventKey7);
@@ -245,15 +387,32 @@ window.addEventListener('scotusgami-data-ready', function() {
                 case_date: caseObj.date,
                 type: 'agreement_streak',
                 is_scotusgami: isNovel7,
-                headline: a + ' and ' + b + ': ' + streak + ' agreements in a row',
+                headline: a + ' and ' + b + ': ' + streak + ' agreements in a row' + (crossPair ? ' (cross-wing)' : ''),
                 detail: 'The pair has now agreed in ' + streak + ' consecutive cases.',
                 justices: [a, b],
                 novelty_score: Math.min(95, 40 + streak * 3)
               });
             }
           } else {
+            var prevAgStreak = pairAgreeStreak[pk];
+            // #5: Check if a notable agreement streak just ended
+            if (prevAgStreak >= 5) {
+              feedItems.push({
+                case_id: caseObj.id,
+                case_name: caseObj.name,
+                case_date: caseObj.date,
+                type: 'streak_broken',
+                is_scotusgami: false,
+                headline: a + ' and ' + b + ' end ' + prevAgStreak + '-case agreement streak',
+                detail: 'After agreeing ' + prevAgStreak + ' times in a row, the pair splits in ' + caseObj.name + '.',
+                justices: [a, b],
+                novelty_score: Math.min(75, 30 + prevAgStreak * 3)
+              });
+            }
+
             pairDisagreeStreak[pk]++;
             pairAgreeStreak[pk] = 0;
+            if (pairDisagreeStreak[pk] > pairPeakDisagreeStreak[pk]) pairPeakDisagreeStreak[pk] = pairDisagreeStreak[pk];
             var dStreak = pairDisagreeStreak[pk];
             if (dStreak === 3 || dStreak === 5 || dStreak === 8 || dStreak === 10) {
               var eventKey8 = 'disagree-streak-' + pk + '-' + dStreak;
@@ -273,43 +432,74 @@ window.addEventListener('scotusgami-data-ready', function() {
             }
           }
 
-          // Milestone rates (only after 10+ cases)
+          // #7: Enhanced rate milestones + reversals
           if (pairTotal[pk] >= 10) {
             var currentRate = (pairAgreed[pk] / pairTotal[pk]) * 100;
             var prevRate = ((pairAgreed[pk] - (sameSide ? 1 : 0)) / (pairTotal[pk] - 1)) * 100;
 
-            if (currentRate >= 90 && prevRate < 90) {
-              var eventKey9 = 'milestone-90-' + pk;
-              var isNovel9 = !seenScotusEvents.has(eventKey9);
-              seenScotusEvents.add(eventKey9);
-              feedItems.push({
-                case_id: caseObj.id,
-                case_name: caseObj.name,
-                case_date: caseObj.date,
-                type: 'milestone_rate',
-                is_scotusgami: isNovel9,
-                headline: a + ' and ' + b + ' cross 90% agreement',
-                detail: 'Now at ' + currentRate.toFixed(1) + '% over ' + pairTotal[pk] + ' cases.',
-                justices: [a, b],
-                novelty_score: isNovel9 ? 75 : 40
-              });
-            }
+            // Milestone crossings: 90%, 75%, 60% up, sub-50% down
+            var milestones = [
+              { threshold: 90, direction: 'up', label: 'cross 90% agreement', score: 75 },
+              { threshold: 75, direction: 'up', label: 'cross 75% agreement', score: 55 },
+              { threshold: 60, direction: 'down', label: 'drop below 60% agreement', score: 60 },
+              { threshold: 50, direction: 'down', label: 'drop below 50% agreement', score: 70 }
+            ];
 
-            if (currentRate < 50 && prevRate >= 50) {
-              var eventKey10 = 'milestone-sub50-' + pk;
-              var isNovel10 = !seenScotusEvents.has(eventKey10);
-              seenScotusEvents.add(eventKey10);
-              feedItems.push({
-                case_id: caseObj.id,
-                case_name: caseObj.name,
-                case_date: caseObj.date,
-                type: 'milestone_rate',
-                is_scotusgami: isNovel10,
-                headline: a + ' and ' + b + ' drop below 50% agreement',
-                detail: 'Now at ' + currentRate.toFixed(1) + '% over ' + pairTotal[pk] + ' cases.',
-                justices: [a, b],
-                novelty_score: isNovel10 ? 70 : 35
-              });
+            milestones.forEach(function(m) {
+              var crossed = false;
+              if (m.direction === 'up') {
+                crossed = currentRate >= m.threshold && prevRate < m.threshold;
+              } else {
+                crossed = currentRate < m.threshold && prevRate >= m.threshold;
+              }
+              if (crossed) {
+                var eventKeyM = 'milestone-' + m.threshold + '-' + m.direction + '-' + pk;
+                var isNovelM = !seenScotusEvents.has(eventKeyM);
+                seenScotusEvents.add(eventKeyM);
+                feedItems.push({
+                  case_id: caseObj.id,
+                  case_name: caseObj.name,
+                  case_date: caseObj.date,
+                  type: 'milestone_rate',
+                  is_scotusgami: isNovelM,
+                  headline: a + ' and ' + b + ' ' + m.label,
+                  detail: 'Now at ' + currentRate.toFixed(1) + '% over ' + pairTotal[pk] + ' cases.',
+                  justices: [a, b],
+                  novelty_score: isNovelM ? m.score : m.score - 25
+                });
+              }
+            });
+
+            // Rate direction reversal detection (after 20+ cases for stability)
+            if (pairTotal[pk] >= 20) {
+              var newDirection = currentRate > prevRate ? 'rising' : (currentRate < prevRate ? 'falling' : null);
+              var oldDirection = pairRateDirection[pk] || null;
+              if (oldDirection && newDirection && oldDirection !== newDirection) {
+                // Only fire if the rate has moved meaningfully (at least 3 points swing)
+                var rateAtDirectionStart = pairPrevRate[pk] || prevRate;
+                var swing = Math.abs(currentRate - rateAtDirectionStart);
+                if (swing >= 3) {
+                  var revKey = 'reversal-' + pk + '-' + pairTotal[pk];
+                  if (!seenScotusEvents.has(revKey)) {
+                    seenScotusEvents.add(revKey);
+                    feedItems.push({
+                      case_id: caseObj.id,
+                      case_name: caseObj.name,
+                      case_date: caseObj.date,
+                      type: 'rate_reversal',
+                      is_scotusgami: false,
+                      headline: a + ' and ' + b + ' agreement rate reverses (' + (newDirection === 'rising' ? 'now rising' : 'now falling') + ')',
+                      detail: 'Rate shifted from ' + rateAtDirectionStart.toFixed(1) + '% to ' + currentRate.toFixed(1) + '% over ' + pairTotal[pk] + ' cases.',
+                      justices: [a, b],
+                      novelty_score: Math.min(65, 35 + Math.floor(swing))
+                    });
+                  }
+                }
+              }
+              if (newDirection && newDirection !== oldDirection) {
+                pairPrevRate[pk] = prevRate;
+              }
+              pairRateDirection[pk] = newDirection;
             }
           }
         }
@@ -367,15 +557,19 @@ window.addEventListener('scotusgami-data-ready', function() {
   controls.appendChild(typeLabel);
 
   var allTypes = [
+    { key: 'vote_split', label: 'New Coalition' },
     { key: 'unanimous', label: 'Unanimous' },
     { key: 'sole_dissenter', label: 'Sole Dissent' },
     { key: 'sole_dissenter_pair', label: 'Dissent Pair' },
     { key: 'unusual_coalition', label: 'Unusual Coalition' },
+    { key: 'bloc_defection', label: 'Defection' },
     { key: 'first_agreement', label: 'First Agree' },
     { key: 'first_disagreement', label: 'First Split' },
     { key: 'agreement_streak', label: 'Agree Streak' },
     { key: 'disagreement_streak', label: 'Disagree Streak' },
-    { key: 'milestone_rate', label: 'Milestone' }
+    { key: 'streak_broken', label: 'Streak Broken' },
+    { key: 'milestone_rate', label: 'Milestone' },
+    { key: 'rate_reversal', label: 'Rate Reversal' }
   ];
 
   var activeTypes = new Set(allTypes.map(function(t) { return t.key; }));
@@ -437,8 +631,10 @@ window.addEventListener('scotusgami-data-ready', function() {
 
   function getAccentClass(items) {
     var types = items.map(function(it) { return it.type; });
+    if (types.indexOf('vote_split') >= 0 || types.indexOf('unusual_coalition') >= 0) return 'accent-scotusgami';
     if (types.indexOf('agreement_streak') >= 0 || types.indexOf('first_agreement') >= 0 || types.indexOf('milestone_rate') >= 0) return 'accent-agreement';
     if (types.indexOf('disagreement_streak') >= 0 || types.indexOf('sole_dissenter') >= 0 || types.indexOf('sole_dissenter_pair') >= 0 || types.indexOf('first_disagreement') >= 0) return 'accent-disagreement';
+    if (types.indexOf('bloc_defection') >= 0 || types.indexOf('streak_broken') >= 0 || types.indexOf('rate_reversal') >= 0) return 'accent-scotusgami';
     if (types.indexOf('unanimous') >= 0) return 'accent-routine';
     return 'accent-routine';
   }

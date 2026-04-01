@@ -207,18 +207,22 @@
   addTable(sec3,
     ['Event', 'Base Score', 'Boosted When'],
     [
-      ['First agreement (cross-wing)', '75', '+5 per prior disagreement (cap 100)'],
-      ['First agreement (same-wing)', '30', '\u2014'],
-      ['First disagreement (same-wing)', '70', '+3 per prior agreement (cap 100)'],
-      ['First disagreement (cross-wing)', '25', '\u2014'],
+      ['New coalition (vote split scorigami)', '50\u201395', 'Close splits (5-4) score higher; cross-wing majority adds +15'],
+      ['Bloc defection', '55\u201365', 'Higher for 5-4 splits than 6-3'],
+      ['First agreement (cross-wing)', '75', 'SCOTUSgami if cross-wing'],
+      ['First agreement (same-wing)', '30', 'Lower score \u2014 expected pairing'],
+      ['First disagreement (same-wing)', '70', 'SCOTUSgami if same-wing'],
+      ['First disagreement (cross-wing)', '25', 'Lower score \u2014 expected pairing'],
       ['Sole dissenter pair (cross-wing)', '85', 'Always SCOTUSgami'],
       ['Sole dissenter pair (same-wing)', '50', '\u2014'],
-      ['Sole dissenter', '45\u201365', 'Higher if against own wing'],
-      ['Unusual coalition (3+ cross-wing dissent)', '80\u201390', 'Scales with group size'],
-      ['Agreement streak (10/15/20+)', '60\u201395', '+20 if cross-wing'],
-      ['Disagreement streak (3/5/8+)', '60\u201395', '+20 if same-wing'],
-      ['Rate milestone (90%+ or <50%)', '35\u201380', 'Higher if defies ideology'],
-      ['Unanimous (9-0)', '15\u201325', 'Low \u2014 common']
+      ['Sole dissenter', '35\u201370', 'Higher if first time for that justice'],
+      ['Unusual coalition (3+ cross-wing dissent)', '80', 'SCOTUSgami if novel grouping'],
+      ['Agreement streak (5+/10/15/20+)', '55\u201395', 'Cross-wing pairs fire at 5; same-wing at 10'],
+      ['Disagreement streak (3/5/8/10)', '50\u201385', 'Scales with streak length'],
+      ['Streak broken', '30\u201375', 'Higher for longer streaks that ended'],
+      ['Rate milestone (90%/75%/60%/50%)', '30\u201375', 'Multiple thresholds tracked'],
+      ['Rate reversal', '35\u201365', 'Fires when trend direction flips after 3%+ swing'],
+      ['Unanimous (9-0)', '5\u201360', 'First of term scores 45\u201360; subsequent 5\u201315']
     ]
   );
 
@@ -249,10 +253,10 @@
   // 4. Agreement Definition
   // =============================================
   var sec4 = makeSection('Agreement Definition');
-  addBoldLine(sec4, 'Same Side (primary metric):', 'Both justices voted majority-side (majority opinion or any form of concurrence) OR both voted dissent-side.');
-  addParagraph(sec4, 'Concurrences are lumped with the majority. A justice who concurs in the judgment only is counted as agreeing with a justice who joined the full majority opinion. This is the metric displayed throughout the dashboard.');
+  addBoldLine(sec4, 'Same Side (outcome-based):', 'Justices are on the same side if they reach the same outcome. Majority and all forms of concurrence are treated as one side; only dissent is the opposite side.');
+  addParagraph(sec4, 'This outcome-based approach means a justice who concurs in the judgment only is counted as agreeing with a justice who joined the full majority opinion. This prioritizes agreement on outcome over agreement on reasoning.');
   addParagraph(sec4, 'A stricter "Agreed" metric \u2014 requiring an exact vote-type match (e.g., both must be majority joiners, not one majority and one concurrence) \u2014 is computed and stored in the database but is not currently displayed in the dashboard.');
-  addParagraph(sec4, 'Because of the concurrence-lumping approach, agreement rates may be slightly inflated for pairs where one justice frequently concurs in judgment only rather than joining the majority opinion outright.');
+  addParagraph(sec4, 'Because of the outcome-based approach, agreement rates may be slightly inflated for pairs where one justice frequently concurs in judgment only rather than joining the majority opinion outright.');
   layout.appendChild(sec4);
 
   // =============================================

@@ -279,6 +279,7 @@ header .subtitle { font-size: 14px; color: #8b949e; }
 }
 .feed-card.accent-agreement { border-left: 3px solid #58a6ff; }
 .feed-card.accent-disagreement { border-left: 3px solid #da3633; }
+.feed-card.accent-scotusgami { border-left: 3px solid #d4a017; }
 .feed-card.accent-routine { border-left: 3px solid #6e7681; }
 .feed-card-headline { font-size: 14px; font-weight: 600; color: #f0f6fc; margin-bottom: 4px; }
 .feed-card-meta { font-size: 11px; color: #8b949e; margin-bottom: 6px; }
@@ -392,6 +393,7 @@ header .subtitle { font-size: 14px; color: #8b949e; }
 /* Viz feed card accent bars */
 .feed-viz-card.accent-agreement { border-left: 3px solid #58a6ff; }
 .feed-viz-card.accent-disagreement { border-left: 3px solid #da3633; }
+.feed-viz-card.accent-scotusgami { border-left: 3px solid #d4a017; }
 .feed-viz-card.accent-routine { border-left: 3px solid #6e7681; }
 
 /* Mobile responsiveness */
