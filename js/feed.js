@@ -53,28 +53,45 @@ window.addEventListener('scotusgami-data-ready', function() {
       else conNames.push(j);
     });
 
-    // Summary text
+    // Build summary as a DOM fragment (so coalition count can be clickable)
+    var frag = document.createDocumentFragment();
     var parts = [];
     if (majNames.length > 0) parts.push(majNames.length + ' in the majority');
     if (conNames.length > 0) parts.push(conNames.length + ' concurrence' + (conNames.length > 1 ? 's' : ''));
     if (disNames.length > 0) parts.push(disNames.length + ' dissent' + (disNames.length > 1 ? 's' : ''));
-    var summaryText = parts.join(', ') + '.';
+    frag.appendChild(document.createTextNode(parts.join(', ') + '.'));
 
     // Scorigami context from feed items
     if (feedItems) {
       var scotusgamiItem = feedItems.find(function(it) { return it.type === 'vote_split'; });
       var coalitionItem = feedItems.find(function(it) { return it.type === 'coalition_count'; });
       if (disNames.length === 0) {
-        summaryText += ' Unanimous — not a SCOTUSgami.';
+        frag.appendChild(document.createTextNode(' Unanimous \u2014 not a SCOTUSgami.'));
       } else if (scotusgamiItem) {
-        summaryText += ' This is a SCOTUSgami \u2014 this exact coalition has never appeared before.';
-      } else if (coalitionItem) {
-        var countMatch = coalitionItem.headline.match(/seen (\d+) times/);
-        if (countMatch) {
-          summaryText += ' Not a SCOTUSgami \u2014 this coalition has been seen ' + countMatch[1] + ' times before.';
-        } else {
-          summaryText += ' Not a SCOTUSgami.';
-        }
+        frag.appendChild(document.createTextNode(' This is a SCOTUSgami \u2014 this exact coalition has never appeared before.'));
+      } else if (coalitionItem && coalitionItem.coalition_sig) {
+        var sig = coalitionItem.coalition_sig;
+        var count = coalitionItem.coalition_count;
+        frag.appendChild(document.createTextNode(' Not a SCOTUSgami \u2014 this coalition has been seen '));
+        var link = document.createElement('a');
+        link.href = '#';
+        link.className = 'coalition-count-link';
+        link.textContent = count + ' times';
+        link.addEventListener('click', function(ev) {
+          ev.preventDefault();
+          // Switch to Coalitions tab and highlight this coalition
+          document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+          document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
+          var coalBtn = document.querySelector('.tab-btn[data-tab="coalitions"]');
+          if (coalBtn) coalBtn.classList.add('active');
+          var coalTab = document.getElementById('tab-coalitions');
+          if (coalTab) coalTab.classList.add('active');
+          window.dispatchEvent(new CustomEvent('scotusgami-show-coalition', { detail: { sig: sig } }));
+        });
+        frag.appendChild(link);
+        frag.appendChild(document.createTextNode(' before.'));
+      } else {
+        frag.appendChild(document.createTextNode(' Not a SCOTUSgami.'));
       }
     }
 
@@ -113,7 +130,7 @@ window.addEventListener('scotusgami-data-ready', function() {
       table.appendChild(tbody);
     }
 
-    return { text: summaryText, table: table };
+    return { textNode: frag, table: table };
   }
 
   // Expose for data-tab.js to use
@@ -249,6 +266,8 @@ window.addEventListener('scotusgami-data-ready', function() {
           case_date: caseObj.date,
           type: 'coalition_count',
           is_scotusgami: false,
+          coalition_sig: sig,
+          coalition_count: coalCount,
           headline: splitLabel + ' decision — ' + (isNewCoalition ? 'first time this coalition' : 'seen ' + coalCount + ' times'),
           detail: 'Majority: ' + majorityJustices.slice().sort().join(', ') + '. Dissent: ' + dissenters.slice().sort().join(', ') + '.' + (isNewCoalition ? ' This is a SCOTUSgami — never seen before.' : ' This exact coalition has occurred ' + coalCount + ' time' + (coalCount === 1 ? '' : 's') + '.'),
           justices: justiceNames,
@@ -635,6 +654,40 @@ window.addEventListener('scotusgami-data-ready', function() {
   });
   window.feedItemsByCase = feedItemsByCase;
 
+  // Build coalition indexes for Coalitions tab
+  var coalitionIndex = {};    // full sig -> [case objects]
+  var majorityGroupIndex = {}; // sorted maj names -> [case objects]
+  var dissentGroupIndex = {};  // sorted dis names -> [case objects]
+  var caseLookup = {};
+  DATA.cases.forEach(function(c) { caseLookup[c.id] = c; });
+
+  Object.keys(voteDetailByCase).forEach(function(caseId) {
+    var cv = voteDetailByCase[caseId];
+    var maj = [], dis = [];
+    Object.keys(cv).sort().forEach(function(j) {
+      if (cv[j] === 'dissent') dis.push(j);
+      else maj.push(j);
+    });
+    if (dis.length === 0) return; // skip unanimous
+
+    var sig = maj.join(',') + '|' + dis.join(',');
+    var majKey = maj.join(',');
+    var disKey = dis.join(',');
+    var caseObj = caseLookup[caseId];
+    if (!caseObj) return;
+
+    if (!coalitionIndex[sig]) coalitionIndex[sig] = [];
+    coalitionIndex[sig].push(caseObj);
+    if (!majorityGroupIndex[majKey]) majorityGroupIndex[majKey] = [];
+    majorityGroupIndex[majKey].push(caseObj);
+    if (!dissentGroupIndex[disKey]) dissentGroupIndex[disKey] = [];
+    dissentGroupIndex[disKey].push(caseObj);
+  });
+
+  window.coalitionIndex = coalitionIndex;
+  window.majorityGroupIndex = majorityGroupIndex;
+  window.dissentGroupIndex = dissentGroupIndex;
+
   var feedContainer = document.getElementById('tab-feed');
   if (!feedContainer) return;
 
@@ -841,7 +894,7 @@ window.addEventListener('scotusgami-data-ready', function() {
       if (voteSummary) {
         var summaryDiv = document.createElement('div');
         summaryDiv.className = 'feed-case-summary';
-        summaryDiv.textContent = voteSummary.text;
+        summaryDiv.appendChild(voteSummary.textNode);
         card.appendChild(summaryDiv);
         if (voteSummary.table) card.appendChild(voteSummary.table);
       }
@@ -1010,7 +1063,7 @@ window.addEventListener('scotusgami-data-ready', function() {
       if (vizSummary) {
         var vizSummaryDiv = document.createElement('div');
         vizSummaryDiv.className = 'feed-case-summary';
-        vizSummaryDiv.textContent = vizSummary.text;
+        vizSummaryDiv.appendChild(vizSummary.textNode);
         card.appendChild(vizSummaryDiv);
         if (vizSummary.table) card.appendChild(vizSummary.table);
       }

@@ -185,7 +185,7 @@ window.addEventListener('scotusgami-data-ready', function() {
         var summaryDiv = document.createElement('div');
         summaryDiv.className = 'feed-case-summary';
         summaryDiv.style.marginTop = '8px';
-        summaryDiv.textContent = voteSummary.text;
+        summaryDiv.appendChild(voteSummary.textNode);
         detailEl.appendChild(summaryDiv);
       }
     }
