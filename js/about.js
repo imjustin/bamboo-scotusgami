@@ -208,6 +208,7 @@
     ['Event', 'Base Score', 'Boosted When'],
     [
       ['New coalition (vote split scorigami)', '50\u201395', 'Close splits (5-4) score higher; cross-wing majority adds +15'],
+      ['Coalition count', '5\u201340', 'Shows how many times this exact majority makeup has occurred'],
       ['Bloc defection', '55\u201365', 'Higher for 5-4 splits than 6-3'],
       ['First agreement (cross-wing)', '75', 'SCOTUSgami if cross-wing'],
       ['First agreement (same-wing)', '30', 'Lower score \u2014 expected pairing'],

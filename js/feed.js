@@ -90,7 +90,7 @@ window.addEventListener('scotusgami-data-ready', function() {
     var pairPrevRate = {};          // #7: track previous rate for reversal detection
     var pairRateDirection = {};     // #7: 'rising', 'falling', or null
     var seenScotusEvents = new Set();
-    var seenCoalitions = new Set(); // #1: track unique coalition compositions
+    var coalitionCounts = {};       // #1: track coalition composition counts
     var unanimousPerTerm = {};      // #2: count unanimousper term
 
     // Index votes by case_id -> {justice: vote_type}
@@ -125,20 +125,22 @@ window.addEventListener('scotusgami-data-ready', function() {
 
       var termYear = caseObj.term_year;
 
-      // #1: Vote split pattern tracking (true scorigami)
+      // #1: Vote split pattern tracking (true scorigami) + coalition counter
       var sig = coalitionSignature(caseVotes, justiceNames);
       if (sig) {
-        var isNewCoalition = !seenCoalitions.has(sig);
+        if (!coalitionCounts[sig]) coalitionCounts[sig] = 0;
+        coalitionCounts[sig]++;
+        var coalCount = coalitionCounts[sig];
+        var isNewCoalition = (coalCount === 1);
+        var splitLabel = majorityJustices.length + '-' + dissenters.length;
+        var majWings = { conservative: 0, liberal: 0 };
+        majorityJustices.forEach(function(j) { var w = getWing(j); if (majWings[w] !== undefined) majWings[w]++; });
+        var isCrossWingCoalition = majWings.conservative > 0 && majWings.liberal > 0;
+
         if (isNewCoalition) {
-          seenCoalitions.add(sig);
-          var splitLabel = majorityJustices.length + '-' + dissenters.length;
           // Higher score for close splits
           var closeness = Math.min(majorityJustices.length, dissenters.length);
           var sigScore = 50 + closeness * 8;
-          // Extra points if cross-wing coalition
-          var majWings = { conservative: 0, liberal: 0 };
-          majorityJustices.forEach(function(j) { var w = getWing(j); if (majWings[w] !== undefined) majWings[w]++; });
-          var isCrossWingCoalition = majWings.conservative > 0 && majWings.liberal > 0;
           if (isCrossWingCoalition && dissenters.length >= 2) sigScore += 15;
           feedItems.push({
             case_id: caseObj.id,
@@ -147,11 +149,24 @@ window.addEventListener('scotusgami-data-ready', function() {
             type: 'vote_split',
             is_scotusgami: true,
             headline: 'New ' + splitLabel + ' coalition' + (isCrossWingCoalition ? ' (cross-wing majority)' : ''),
-            detail: 'First time this exact ' + splitLabel + ' grouping has appeared.',
+            detail: 'First time this exact ' + splitLabel + ' grouping: ' + majorityJustices.slice().sort().join(', ') + ' vs. ' + dissenters.slice().sort().join(', ') + '.',
             justices: justiceNames,
             novelty_score: Math.min(95, sigScore)
           });
         }
+
+        // Always emit coalition count for non-unanimous cases
+        feedItems.push({
+          case_id: caseObj.id,
+          case_name: caseObj.name,
+          case_date: caseObj.date,
+          type: 'coalition_count',
+          is_scotusgami: false,
+          headline: splitLabel + ' decision — ' + (isNewCoalition ? 'first time this coalition' : 'seen ' + coalCount + ' times'),
+          detail: 'Majority: ' + majorityJustices.slice().sort().join(', ') + '. Dissent: ' + dissenters.slice().sort().join(', ') + '.' + (isNewCoalition ? ' This is a SCOTUSgami — never seen before.' : ' This exact coalition has occurred ' + coalCount + ' time' + (coalCount === 1 ? '' : 's') + '.'),
+          justices: justiceNames,
+          novelty_score: isNewCoalition ? 40 : Math.max(5, 20 - coalCount)
+        });
       }
 
       // #2: Unanimous with term-scoped throttling
@@ -558,6 +573,7 @@ window.addEventListener('scotusgami-data-ready', function() {
 
   var allTypes = [
     { key: 'vote_split', label: 'New Coalition' },
+    { key: 'coalition_count', label: 'Coalition Count' },
     { key: 'unanimous', label: 'Unanimous' },
     { key: 'sole_dissenter', label: 'Sole Dissent' },
     { key: 'sole_dissenter_pair', label: 'Dissent Pair' },
@@ -631,7 +647,7 @@ window.addEventListener('scotusgami-data-ready', function() {
 
   function getAccentClass(items) {
     var types = items.map(function(it) { return it.type; });
-    if (types.indexOf('vote_split') >= 0 || types.indexOf('unusual_coalition') >= 0) return 'accent-scotusgami';
+    if (types.indexOf('vote_split') >= 0 || types.indexOf('unusual_coalition') >= 0 || types.indexOf('coalition_count') >= 0) return 'accent-scotusgami';
     if (types.indexOf('agreement_streak') >= 0 || types.indexOf('first_agreement') >= 0 || types.indexOf('milestone_rate') >= 0) return 'accent-agreement';
     if (types.indexOf('disagreement_streak') >= 0 || types.indexOf('sole_dissenter') >= 0 || types.indexOf('sole_dissenter_pair') >= 0 || types.indexOf('first_disagreement') >= 0) return 'accent-disagreement';
     if (types.indexOf('bloc_defection') >= 0 || types.indexOf('streak_broken') >= 0 || types.indexOf('rate_reversal') >= 0) return 'accent-scotusgami';
