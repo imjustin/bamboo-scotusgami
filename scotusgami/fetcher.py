@@ -1,82 +1,82 @@
-"""CourtListener API client for fetching Supreme Court data."""
+"""Scrape Supreme Court opinions from supremecourt.gov."""
 
-import time
-from typing import Optional, Generator
-import requests
 import os
+import re
+import requests
+from bs4 import BeautifulSoup
+from typing import Generator
 
 
-BASE_URL = "https://www.courtlistener.com/api/rest/v3"
-SCOTUS_COURT = "scotus"
-ROBERTS_START = "2005-01-01"
+BASE_URL = "https://www.supremecourt.gov"
+PDF_DIR = "opinion-pdfs"
 
 
-class CourtListenerClient:
-    """Client for CourtListener API."""
+class SCOTUSFetcher:
+    """Fetches opinion PDFs from supremecourt.gov."""
 
-    def __init__(self, api_key: Optional[str] = None, delay: float = 0.5):
-        """Initialize with optional API key and rate-limiting delay (seconds)."""
-        self.delay = delay
-        self.session = requests.Session()
+    def __init__(self, pdf_dir: str = PDF_DIR):
+        self.pdf_dir = pdf_dir
+        os.makedirs(pdf_dir, exist_ok=True)
 
-        self.api_key = api_key or os.getenv("COURTLISTENER_API_KEY")
-        if self.api_key:
-            self.session.headers.update({"Authorization": f"Token {self.api_key}"})
-
-    def _get(self, endpoint: str, params: dict = None) -> dict:
-        """Make paginated GET request."""
-        url = f"{BASE_URL}{endpoint}"
-        if params is None:
-            params = {}
-
-        response = self.session.get(url, params=params, timeout=10)
+    def fetch_opinion_list(self, term: int = 25) -> list[dict]:
+        """
+        Fetch list of opinions for a given term from supremecourt.gov.
+        term: last 2 digits of the year the term started (e.g., 25 for Oct 2025 term).
+        Returns list of dicts with case metadata and PDF URLs.
+        """
+        url = f"{BASE_URL}/opinions/slipopinion/{term}"
+        response = requests.get(url, timeout=10)
         response.raise_for_status()
-        time.sleep(self.delay)
-        return response.json()
 
-    def fetch_opinions(self, start_date: str = ROBERTS_START, end_date: Optional[str] = None) -> Generator:
-        """Fetch all SCOTUS opinions (paginated). Yields opinion dicts."""
-        params = {
-            "court": SCOTUS_COURT,
-            "date_filed__gte": start_date,
-            "order_by": "date_filed",
-            "limit": 100,
-        }
-        if end_date:
-            params["date_filed__lte"] = end_date
+        soup = BeautifulSoup(response.text, 'html.parser')
+        tables = soup.find_all('table')
 
-        next_url = f"{BASE_URL}/opinions/"
+        cases = []
+        for table in tables:
+            rows = table.find_all('tr')
+            header_cells = [th.text.strip() for th in rows[0].find_all(['th', 'td'])]
+            if 'Docket' not in header_cells:
+                continue
 
-        while next_url:
-            response = self.session.get(next_url, timeout=10)
-            response.raise_for_status()
-            time.sleep(self.delay)
-            data = response.json()
+            for row in rows[1:]:
+                cells = row.find_all('td')
+                if len(cells) < 5:
+                    continue
 
-            for opinion in data.get("results", []):
-                yield opinion
+                links = row.find_all('a', href=True)
+                pdf_link = None
+                for a in links:
+                    href = a.get('href', '')
+                    if href.endswith('.pdf') and 'diff' not in href:
+                        pdf_link = href
+                        break
 
-            next_url = data.get("next")
+                case = {
+                    'date': cells[1].text.strip(),
+                    'docket': cells[2].text.strip(),
+                    'name': cells[3].text.strip().split('\n')[0],
+                    'justice_initials': cells[4].text.strip(),
+                    'pdf_url': f"{BASE_URL}{pdf_link}" if pdf_link else None,
+                }
+                cases.append(case)
 
-    def fetch_votes(self, opinion_id: int) -> list:
-        """Fetch all votes for a given opinion. Returns list of vote dicts."""
-        endpoint = f"/votes/"
-        params = {
-            "opinion_id": opinion_id,
-            "limit": 100,
-        }
+        return cases
 
-        votes = []
-        next_url = f"{BASE_URL}{endpoint}"
+    def download_pdf(self, case: dict) -> str:
+        """Download opinion PDF. Returns local filepath."""
+        if not case.get('pdf_url'):
+            return None
 
-        while next_url:
-            response = self.session.get(next_url, params=params, timeout=10)
-            response.raise_for_status()
-            time.sleep(self.delay)
-            data = response.json()
+        filename = f"{case['docket'].replace('/', '-')}_{case['name'].replace(' ', '_')[:30]}.pdf"
+        filepath = os.path.join(self.pdf_dir, filename)
 
-            votes.extend(data.get("results", []))
-            next_url = data.get("next")
-            params = {}  # Clear params after first request
+        if os.path.exists(filepath):
+            return filepath
 
-        return votes
+        response = requests.get(case['pdf_url'], timeout=30)
+        response.raise_for_status()
+
+        with open(filepath, 'wb') as f:
+            f.write(response.content)
+
+        return filepath

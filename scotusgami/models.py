@@ -80,7 +80,7 @@ def get_or_create_justice(conn: sqlite3.Connection, name: str) -> int:
     return cursor.lastrowid
 
 
-def get_or_create_case(conn: sqlite3.Connection, cl_id: int, name: str, date_decided: str, term_year: int, docket_number: str) -> int:
+def get_or_create_case(conn: sqlite3.Connection, name: str, date_decided: str, term_year: int, docket_number: str) -> int:
     """Get case ID or create if not exists. Uses docket_number as unique key."""
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM cases WHERE docket_number = ?", (docket_number,))

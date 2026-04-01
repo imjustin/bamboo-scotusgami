@@ -1,84 +1,106 @@
-"""Vote processing and agreement calculation."""
+"""PDF vote extraction and agreement calculation."""
 
+import re
 import sqlite3
-from typing import Tuple
+import fitz
 from .models import (
     get_or_create_justice,
     get_or_create_case,
     insert_vote,
     insert_agreement,
-    get_all_justices,
 )
 
 
-VOTE_TYPE_MAPPING = {
-    "Majority": "majority",
-    "Dissent": "dissent",
-    "Concurrence": "concurrence",
-    "Concurrence in part, Dissent in part": "concurrence_in_part",
-    "Not Participating": "not_participating",
-}
+JUSTICES = ["Roberts", "Thomas", "Alito", "Sotomayor", "Kagan", "Gorsuch", "Kavanaugh", "Barrett", "Jackson"]
 
 
-def normalize_vote_type(raw_vote_type: str) -> str:
-    """Normalize CourtListener vote types to canonical form."""
-    for raw, canonical in VOTE_TYPE_MAPPING.items():
-        if raw.lower() in raw_vote_type.lower():
-            return canonical
-    return "unknown"
-
-
-def process_case_and_votes(
-    conn: sqlite3.Connection,
-    opinion: dict,
-    votes: list,
-) -> int:
+def extract_votes_from_pdf(filepath: str) -> dict[str, str]:
     """
-    Process a case and its votes. Store in DB. Return case_id.
-
-    opinion: dict from CourtListener /opinions/ endpoint
-    votes: list of dicts from /votes/ endpoint
+    Extract justice votes from a SCOTUS opinion PDF.
+    Returns {justice_name: vote_type} where vote_type is majority/concurrence/dissent.
     """
-    opinion_id = opinion["id"]
-    name = opinion.get("case_name", "Unknown")
-    date_decided = opinion.get("date_filed", "")
-    docket_number = opinion.get("docket_number", "")
-    term_year = int(opinion.get("term", 0)) if opinion.get("term") else 0
+    doc = fitz.open(filepath)
+
+    # Find the vote block (usually pages 3-5)
+    block = None
+    for page_num in range(min(6, len(doc))):
+        text = doc[page_num].get_text()
+        if 'delivered the opinion' in text:
+            collapsed = ' '.join(text.split())
+            match = re.search(
+                r'(\w+,\s+(?:C\.\s*)?J\.,\s+delivered the opinion.+?)(?:JUSTICE\s+\w+\s+delivered|$)',
+                collapsed
+            )
+            if match:
+                block = match.group(1)
+                break
+        elif 'per curiam' in text.lower():
+            block = "PER CURIAM"
+            break
+
+    doc.close()
+
+    if not block:
+        return {}
+
+    votes = {}
+
+    # Per curiam = unanimous
+    if block == "PER CURIAM":
+        for j in JUSTICES:
+            votes[j] = "majority"
+        return votes
+
+    # Split on ". " before a justice name pattern
+    parts = re.split(r'\.\s+(?=[A-Z]+,\s+(?:C\.\s*)?J\.)', block)
+
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+
+        if 'delivered the opinion' in part:
+            for j in JUSTICES:
+                if j.upper() in part.upper():
+                    votes[j] = "majority"
+        elif 'concurring' in part:
+            for j in JUSTICES:
+                if j.upper() in part.upper() and j not in votes:
+                    votes[j] = "concurrence"
+        elif 'dissent' in part:
+            for j in JUSTICES:
+                if j.upper() in part.upper() and j not in votes:
+                    votes[j] = "dissent"
+
+    return votes
+
+
+def process_case(conn: sqlite3.Connection, case: dict, pdf_path: str) -> int:
+    """Process a single case: extract votes from PDF and store in DB."""
+    votes = extract_votes_from_pdf(pdf_path)
+    if not votes:
+        return None
 
     case_id = get_or_create_case(
         conn,
-        opinion_id,
-        name,
-        date_decided,
-        term_year,
-        docket_number,
+        name=case['name'],
+        date_decided=case['date'],
+        term_year=2025,
+        docket_number=case['docket'],
     )
 
-    for vote in votes:
-        justice_name = vote.get("judge", {}).get("name", "")
-        if not justice_name:
-            continue
-
+    for justice_name, vote_type in votes.items():
         justice_id = get_or_create_justice(conn, justice_name)
-        raw_vote_type = vote.get("type", "")
-        canonical_vote_type = normalize_vote_type(raw_vote_type)
+        insert_vote(conn, case_id, justice_id, vote_type)
 
-        insert_vote(conn, case_id, justice_id, canonical_vote_type)
-
+    compute_agreements_for_case(conn, case_id)
     return case_id
 
 
 def compute_agreements_for_case(conn: sqlite3.Connection, case_id: int) -> None:
-    """
-    Compute pairwise agreement metrics for all justices in a case.
-    Store in agreements table.
-    """
+    """Compute pairwise agreement for all justices in a case."""
     cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT justice_id, vote_type FROM votes WHERE case_id = ?",
-        (case_id,)
-    )
+    cursor.execute("SELECT justice_id, vote_type FROM votes WHERE case_id = ?", (case_id,))
     votes = cursor.fetchall()
 
     if len(votes) < 2:
@@ -86,53 +108,18 @@ def compute_agreements_for_case(conn: sqlite3.Connection, case_id: int) -> None:
 
     vote_dict = {row[0]: row[1] for row in votes}
 
-    for i, (justice_a_id, vote_a) in enumerate(vote_dict.items()):
-        for justice_b_id, vote_b in list(vote_dict.items())[i+1:]:
-            same_side = compute_same_side(vote_a, vote_b)
+    justice_ids = list(vote_dict.keys())
+    for i in range(len(justice_ids)):
+        for j in range(i + 1, len(justice_ids)):
+            a_id, b_id = justice_ids[i], justice_ids[j]
+            vote_a, vote_b = vote_dict[a_id], vote_dict[b_id]
+
+            # same_side: both majority or both non-majority
+            a_majority = vote_a == "majority"
+            b_majority = vote_b == "majority"
+            same_side = 1 if a_majority == b_majority else 0
+
+            # agreed: exact vote type match
             agreed = 1 if vote_a == vote_b else 0
 
-            insert_agreement(conn, justice_a_id, justice_b_id, case_id, same_side, agreed)
-
-
-def compute_same_side(vote_a: str, vote_b: str) -> int:
-    """
-    Return 1 if both votes are on the same 'side' (majority or non-majority).
-    """
-    majority_votes = {"majority"}
-    non_majority_votes = {"dissent", "concurrence", "concurrence_in_part", "not_participating", "unknown"}
-
-    a_is_majority = vote_a in majority_votes
-    b_is_majority = vote_b in majority_votes
-
-    if a_is_majority == b_is_majority:
-        return 1
-    return 0
-
-
-def process_all_cases(
-    conn: sqlite3.Connection,
-    client,
-    start_date: str = "2005-01-01",
-    end_date: str = None,
-) -> int:
-    """
-    Fetch all cases from CourtListener and process them.
-    Return count of cases processed.
-    """
-    case_count = 0
-
-    for opinion in client.fetch_opinions(start_date=start_date, end_date=end_date):
-        opinion_id = opinion["id"]
-
-        votes = client.fetch_votes(opinion_id)
-        if not votes:
-            continue
-
-        case_id = process_case_and_votes(conn, opinion, votes)
-        compute_agreements_for_case(conn, case_id)
-        case_count += 1
-
-        if case_count % 10 == 0:
-            print(f"Processed {case_count} cases...")
-
-    return case_count
+            insert_agreement(conn, a_id, b_id, case_id, same_side, agreed)
