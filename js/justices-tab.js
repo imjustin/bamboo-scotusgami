@@ -721,7 +721,7 @@
           if (coVoters.length > 0) {
             var coSpan = document.createElement('span');
             coSpan.className = 'justice-case-covote';
-            coSpan.textContent = coVoters.join(', ');
+            coSpan.textContent = 'Voted with: ' + coVoters.join(', ');
             li.appendChild(coSpan);
           }
         }
