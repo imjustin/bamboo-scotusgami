@@ -21,6 +21,16 @@
 <header>
   <h1>SCOTUSgami</h1>
   <span class="subtitle">Justice Agreement Dashboard</span>
+  <div class="term-filter-controls">
+    <label class="term-filter-label">Showing:</label>
+    <select id="term-filter">
+      <option value="current">Current Term</option>
+      <option value="last">Last Term</option>
+      <option value="last3">Last 3 Terms</option>
+      <option value="last10" selected>Last 10 Terms</option>
+      <option value="all">All Terms (Roberts Court)</option>
+    </select>
+  </div>
 </header>
 
 <div class="tab-bar">
@@ -32,17 +42,6 @@
 </div>
 
 <div id="tab-visualize" class="tab-content active">
-  <div class="viz-controls">
-    <div class="term-filter-controls">
-      <label class="term-filter-label">Showing:</label>
-      <select id="term-filter">
-        <option value="current">Current Term</option>
-        <option value="last">Last Term</option>
-        <option value="last3">Last 3 Terms</option>
-        <option value="last10" selected>Last 10 Terms</option>
-      </select>
-    </div>
-  </div>
   <div class="viz-grid">
     <div class="panel panel-heatmap">
       <div class="panel-title">Agreement Heatmap</div>
@@ -76,9 +75,35 @@
         <div class="pair-detail-placeholder">Select pairs from the heatmap or network to see details</div>
       </div>
     </div>
+    <div class="panel panel-outcome-grid">
+      <div class="panel-title">Vote Configuration Grid</div>
+      <div id="outcome-grid"></div>
+    </div>
     <div class="panel panel-top-coalitions">
       <div class="panel-title">Top Coalitions</div>
-      <div id="coalition-viz-list" class="coalition-viz-list"></div>
+      <div class="coalitions-columns" id="coalition-viz-columns">
+        <div class="coalitions-column">
+          <div class="coalitions-column-title">Majority Groups</div>
+          <div class="coalitions-group-list" id="coalition-viz-maj"></div>
+        </div>
+        <div class="coalitions-column">
+          <div class="coalitions-column-title">Dissent Groups</div>
+          <div class="coalitions-group-list" id="coalition-viz-dis"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel panel-swing-score">
+      <div class="panel-title">Swing Score (Close Decisions)</div>
+      <div id="swing-score"></div>
+    </div>
+    <div class="panel panel-ideology">
+      <div class="panel-title">Ideology Drift</div>
+      <div class="panel-subtitle" style="font-size:11px;color:#8b949e;margin-bottom:8px;">Agreement with liberal bloc minus conservative bloc</div>
+      <div id="ideology-chart"></div>
+    </div>
+    <div class="panel panel-bedfellows">
+      <div class="panel-title">Unusual Bedfellows</div>
+      <div id="bedfellows-list"></div>
     </div>
   </div>
 </div>
@@ -115,5 +140,10 @@
 <script src="js/about.js"></script>
 <script src="js/feed.js"></script>
 <script src="js/coalitions-tab.js"></script>
+<script src="js/outcome-grid.js"></script>
+<script src="js/swing-score.js"></script>
+<script src="js/ideology-drift.js"></script>
+<script src="js/bedfellows.js"></script>
+<script src="js/term-delta.js"></script>
 </body>
 </html>

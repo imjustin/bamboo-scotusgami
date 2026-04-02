@@ -12,9 +12,9 @@
 
 - [ ] **Term-over-Term Comparison** — Side-by-side heatmaps or a delta heatmap showing which pairs got more/less aligned compared to last term. "Alito-Roberts agreement dropped 12% this term."
 
-- [ ] **Justice Influence Network** — Instead of agreement, map who writes opinions that others join. Which justices "lead" coalitions vs just vote along?
-
 ## Medium Priority
+
+- [ ] **Justice Influence Network** — Map who writes opinions that others join. Requires pipeline changes: add `majOpinWriter` from SCDB to schema, parse joiner data. Phase 1: add opinion authorship bar chart. Phase 2: directed influence graph. Phase 3: parse concurrence/dissent authorship from PDFs.
 
 - [ ] **Dissent Frequency by Justice** — Who dissents most? Stacked bar per justice showing majority/concurrence/dissent splits. Track lone dissents specifically.
 
@@ -26,10 +26,10 @@
 
 ## Bugs & Polish
 
-- [ ] **P0: Coalition tab-switch scroll race** — Clicking "X times" link dispatches `scotusgami-show-coalition` before tab is visible, so `scrollIntoView` no-ops. Add `requestAnimationFrame` before dispatch.
-- [ ] **P1: Top Coalitions missing from responsive CSS** — `panel-top-coalitions` not handled in `@media (max-width: 1200px)` or `768px` breakpoints. Panels overlap on narrow viewports.
-- [ ] **P1: Feed search ignores justice names** — Search only checks case name, not justice names or event headlines. Three-line fix to filter predicate in `feed.js`.
-- [ ] **P2: Hardcoded term years in dropdown** — "Current Term (2025)" in HTML goes stale next October. Dynamically set from `availableTermYears`.
-- [ ] **P2: Score vs Novelty label inconsistency** — Badge says "Score:", slider says "Min novelty:". Add tooltip and unify labels.
-- [ ] **P2: setTimeout(50) hack in coalitions-tab.js** — Replace with deterministic `scotusgami-indexes-ready` event from feed.js.
-- [ ] **P1: Duplicated utility functions** — `parseDate()` in feed.js and data-tab.js, `pairKey()` in feed.js and visualize.js, tab-switch pattern in 4 places. Extract to `utils.js`.
+- [x] **P0: Coalition tab-switch scroll race** — Clicking "X times" link dispatches `scotusgami-show-coalition` before tab is visible, so `scrollIntoView` no-ops. Add `requestAnimationFrame` before dispatch.
+- [x] **P1: Top Coalitions missing from responsive CSS** — `panel-top-coalitions` not handled in `@media (max-width: 1200px)` or `768px` breakpoints. Panels overlap on narrow viewports.
+- [x] **P1: Feed search ignores justice names** — Search only checks case name, not justice names or event headlines. Three-line fix to filter predicate in `feed.js`.
+- [x] **P2: Hardcoded term years in dropdown** — "Current Term (2025)" in HTML goes stale next October. Dynamically set from `availableTermYears`.
+- [x] **P2: Score vs Novelty label inconsistency** — Badge says "Score:", slider says "Min novelty:". Add tooltip and unify labels.
+- [x] **P2: setTimeout(50) hack in coalitions-tab.js** — Replace with deterministic `scotusgami-indexes-ready` event from feed.js.
+- [x] **P1: Duplicated utility functions** — `parseDate()` in feed.js and data-tab.js, `pairKey()` in feed.js and visualize.js, tab-switch pattern in 4 places. Extract to `utils.js`.

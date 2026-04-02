@@ -366,6 +366,7 @@ function getTermRange() {
       var start = availableTermYears[Math.max(0, n - 3)];
       return [start, availableTermYears[n - 1]];
     }
+    case 'all': return [availableTermYears[0], availableTermYears[n - 1]];
     case 'last10':
     default: {
       var start = availableTermYears[Math.max(0, n - 10)];
@@ -580,6 +581,11 @@ function updateHeatmapData(filteredAgreements) {
       showTooltip(ev, d.a + ' + ' + d.b, d.rate + '% agreement (' + d.cases + ' cases)');
     }
   });
+
+  // Re-apply delta overlay if active (prevents click from resetting to rate mode)
+  if (window.heatmapDelta && window.heatmapDelta.isActive()) {
+    window.heatmapDelta.reapply();
+  }
 }
 
 // ============================================
@@ -906,10 +912,12 @@ function updatePairDetail() {
 
 // ============================================
 // TOP COALITIONS VIZ PANEL
+// Two-column layout matching coalitions tab style
 // ============================================
 (function() {
-  var vizList = document.getElementById('coalition-viz-list');
-  if (!vizList) return;
+  var vizMajList = document.getElementById('coalition-viz-maj');
+  var vizDisList = document.getElementById('coalition-viz-dis');
+  if (!vizMajList || !vizDisList) return;
 
   // Build vote lookup
   var vizVotesByCase = {};
@@ -918,14 +926,55 @@ function updatePairDetail() {
     vizVotesByCase[v.case_id][v.justice] = v.vote;
   });
 
+  function renderVizGroupList(listEl, entries, topN) {
+    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+    if (entries.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'pair-detail-placeholder';
+      empty.textContent = 'No groups in selected range';
+      listEl.appendChild(empty);
+      return;
+    }
+    var shown = entries.slice(0, topN);
+    shown.forEach(function(entry) {
+      var item = document.createElement('div');
+      item.className = 'coalition-group-item';
+      item.style.cursor = 'pointer';
+
+      var header = document.createElement('div');
+      header.className = 'coalition-group-header';
+
+      var namesSpan = document.createElement('span');
+      namesSpan.className = 'coalition-group-names';
+      namesSpan.textContent = entry.names.join(', ');
+      header.appendChild(namesSpan);
+
+      var countBadge = document.createElement('span');
+      countBadge.className = 'coalition-group-count';
+      countBadge.textContent = entry.count + (entry.count === 1 ? ' case' : ' cases');
+      header.appendChild(countBadge);
+
+      var sizeLabel = document.createElement('span');
+      sizeLabel.className = 'coalition-group-size';
+      sizeLabel.textContent = entry.names.length + 'J';
+      header.appendChild(sizeLabel);
+
+      item.appendChild(header);
+
+      // Click to go to Coalitions tab
+      item.addEventListener('click', function() {
+        switchToTab('coalitions');
+      });
+
+      listEl.appendChild(item);
+    });
+  }
+
   function renderCoalitionViz() {
-    while (vizList.firstChild) vizList.removeChild(vizList.firstChild);
-
     var filteredCases = getFilteredCases();
-    var filteredIds = new Set(filteredCases.map(function(c) { return c.id; }));
+    var majIdx = {};
+    var disIdx = {};
 
-    // Count coalitions within filtered cases
-    var coalCounts = {};
     filteredCases.forEach(function(c) {
       var cv = vizVotesByCase[c.id];
       if (!cv) return;
@@ -935,57 +984,24 @@ function updatePairDetail() {
         else maj.push(j);
       });
       if (dis.length === 0) return;
-      var sig = maj.join(',') + '|' + dis.join(',');
-      if (!coalCounts[sig]) coalCounts[sig] = { maj: maj, dis: dis, count: 0 };
-      coalCounts[sig].count++;
+      var majKey = maj.join(',');
+      var disKey = dis.join(',');
+      if (!majIdx[majKey]) majIdx[majKey] = 0;
+      majIdx[majKey]++;
+      if (!disIdx[disKey]) disIdx[disKey] = 0;
+      disIdx[disKey]++;
     });
 
-    // Sort by count descending
-    var sorted = Object.keys(coalCounts).map(function(sig) {
-      return { sig: sig, maj: coalCounts[sig].maj, dis: coalCounts[sig].dis, count: coalCounts[sig].count };
+    var majEntries = Object.keys(majIdx).map(function(key) {
+      return { names: key.split(','), count: majIdx[key] };
     }).sort(function(a, b) { return b.count - a.count; });
 
-    if (sorted.length === 0) {
-      var empty = document.createElement('div');
-      empty.className = 'pair-detail-placeholder';
-      empty.textContent = 'No non-unanimous cases in selected range';
-      vizList.appendChild(empty);
-      return;
-    }
+    var disEntries = Object.keys(disIdx).map(function(key) {
+      return { names: key.split(','), count: disIdx[key] };
+    }).sort(function(a, b) { return b.count - a.count; });
 
-    // Show top coalitions (all of them, scrollable)
-    sorted.forEach(function(entry) {
-      var item = document.createElement('a');
-      item.href = '#';
-      item.className = 'coalition-viz-item';
-
-      var split = document.createElement('span');
-      split.className = 'coalition-viz-split';
-      split.textContent = entry.maj.length + '-' + entry.dis.length;
-      item.appendChild(split);
-
-      var names = document.createElement('span');
-      names.className = 'coalition-viz-names';
-      names.textContent = entry.dis.join(', ') + ' dissenting';
-      item.appendChild(names);
-
-      var count = document.createElement('span');
-      count.className = 'coalition-viz-count';
-      count.textContent = entry.count + '\u00d7';
-      item.appendChild(count);
-
-      // Click to go to Coalitions tab
-      item.addEventListener('click', function(ev) {
-        ev.preventDefault();
-        switchToTab('coalitions', function() {
-          requestAnimationFrame(function() {
-            window.dispatchEvent(new CustomEvent('scotusgami-show-coalition', { detail: { sig: entry.sig } }));
-          });
-        });
-      });
-
-      vizList.appendChild(item);
-    });
+    renderVizGroupList(vizMajList, majEntries, 10);
+    renderVizGroupList(vizDisList, disEntries, 10);
   }
 
   renderCoalitionViz();
