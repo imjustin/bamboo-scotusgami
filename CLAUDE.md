@@ -23,6 +23,13 @@ AskUserQuestion:
 - **Structure**: Package-based (`scotusgami/` module)
 - **Data**: Roberts era (2005–present), CourtListener API
 
+## Repository
+
+- **Default branch**: `main` (both repos, renamed from `master` April 2026)
+- **Private repo** (`origin`): `scotusgami` — source of truth
+- **Public repo** (`public`): `bamboo-scotusgami` — GitHub Pages deployment. Must stay in sync with private repo's dashboard code and exported data. Stale submodule refs or missing files break the Pages build.
+- **Push workflow**: Always push to both remotes after dashboard changes. Public push uses `git push public main`.
+
 ## Project Structure
 
 The project has two layers: a Python data pipeline and a browser-based dashboard.
@@ -56,3 +63,4 @@ The project has two layers: a Python data pipeline and a browser-based dashboard
 - **Panel layout preference**: independent panels in the viz grid, not features nested inside other features.
 - **Date format** in data: `M/DD/YY` — requires custom parsing, not string-sortable.
 - **Case history vote display**: Show co-voters by justice name (e.g. "Alito, Thomas") rather than a vote-type badge. Majority-side co-voters include majority + concurrence votes; dissent-side shows only dissenters. Skip co-voter display for concurrences.
+- **Agreement Over Time overlays**: Timeline chart supports optional overlay toggles — close-case (dashed line, 5-4/6-3 only) and rolling window (dotted line, moving N-case average). Overlays use the pair's color; line style distinguishes them: solid = cumulative, dashed = close, dotted = rolling.

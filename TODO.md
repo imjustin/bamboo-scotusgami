@@ -24,11 +24,13 @@
 
 - [ ] **"Hot Streaks" Dashboard** — Current active streaks for all pairs, sortable. "Gorsuch and Kavanaugh have agreed on the last 14 cases" at a glance.
 
+## Design
+
+- [ ] **Visual design review & overhaul** — Review dashboard UI holistically: colors, layout, typography, responsiveness, overall look and feel. Identify what's working and what needs improvement, then redesign.
+
 ## Data Pipeline
 
-- [ ] **Audit for duplicate processing** — Before adding auto-fetch, review fetcher.py / processor.py / import_scdb.py to confirm there's no overlap in what each source provides. Ensure cases from OT2025 scraper vs SCDB import can't be double-counted in the DB.
-- [ ] **Audit client vs server processing** — Review `feed.js` / `visualize.js` for heavy computation (novelty scoring, coalition indexing, agreement computation). Determine what should be pre-computed in Python and saved to static JSON vs what must stay client-side. Goal: keep GitHub Pages static while reducing browser load.
-- [ ] **Automatic new case detection & processing** — Build system to check for new cases from supremecourt.gov and process them into the dataset on a schedule (e.g., daily, weekly). Should feed new cases into the existing pipeline without manual intervention. See [auto-fetch-design.md](docs/auto-fetch-design.md) for architecture and implementation plan.
+- [ ] **Auto-fetch, validation & static export** — Streamline adding new cases: fetch → validate against Oyez/SCOTUSblog → pre-compute analytics in Python → export two static JSONs → push to public repo. See [auto-fetch-design.md](docs/auto-fetch-design.md) for full design.
 
 ## Bugs & Polish
 
