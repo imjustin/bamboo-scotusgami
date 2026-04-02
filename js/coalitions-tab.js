@@ -1,15 +1,13 @@
 // ============================================
 // COALITIONS TAB: Explore majority/dissent groups
 // ============================================
-window.addEventListener('scotusgami-data-ready', function() {
+window.addEventListener('scotusgami-indexes-ready', function() {
   var container = document.getElementById('tab-coalitions');
   if (!container) return;
 
-  // Wait a tick for feed.js to build indexes
-  setTimeout(function() {
-    var majIndex = window.majorityGroupIndex || {};
-    var disIndex = window.dissentGroupIndex || {};
-    var coalIndex = window.coalitionIndex || {};
+  var majIndex = window.majorityGroupIndex || {};
+  var disIndex = window.dissentGroupIndex || {};
+  var coalIndex = window.coalitionIndex || {};
 
     var layout = document.createElement('div');
     layout.className = 'coalitions-layout';
@@ -143,20 +141,15 @@ window.addEventListener('scotusgami-data-ready', function() {
           caseRow.textContent = c.name + ' (' + c.date + ')';
           caseRow.addEventListener('click', function(ev) {
             ev.preventDefault();
-            // Switch to Data tab and select this case
-            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-            document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
-            var dataBtn = document.querySelector('.tab-btn[data-tab="data"]');
-            if (dataBtn) dataBtn.classList.add('active');
-            var dataTab = document.getElementById('tab-data');
-            if (dataTab) dataTab.classList.add('active');
-            var caseListItems = document.querySelectorAll('#case-list li');
-            caseListItems.forEach(function(li) {
-              var datum = d3.select(li).datum();
-              if (datum && datum.id === c.id) {
-                li.click();
-                li.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
+            switchToTab('data', function() {
+              var caseListItems = document.querySelectorAll('#case-list li');
+              caseListItems.forEach(function(li) {
+                var datum = d3.select(li).datum();
+                if (datum && datum.id === c.id) {
+                  li.click();
+                  li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              });
             });
           });
           caseList.appendChild(caseRow);
@@ -224,5 +217,4 @@ window.addEventListener('scotusgami-data-ready', function() {
         }
       });
     });
-  }, 50);
 });

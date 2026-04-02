@@ -19,18 +19,8 @@ window.addEventListener('scotusgami-data-ready', function() {
     return wa !== wb && wa !== 'unknown' && wb !== 'unknown';
   }
 
-  function parseDate(dateStr) {
-    var parts = dateStr.split('/');
-    var month = parseInt(parts[0], 10);
-    var day = parseInt(parts[1], 10);
-    var year = parseInt(parts[2], 10);
-    year += year < 50 ? 2000 : 1900;
-    return new Date(year, month - 1, day);
-  }
-
-  function pairKey(a, b) {
-    return [a, b].sort().join('-');
-  }
+  var parseDate = window.parseDate;
+  var pairKey = window.pairKey;
 
   // Build case-level vote detail lookup for rendering
   var voteDetailByCase = {};
@@ -79,14 +69,11 @@ window.addEventListener('scotusgami-data-ready', function() {
         link.textContent = count + ' times';
         link.addEventListener('click', function(ev) {
           ev.preventDefault();
-          // Switch to Coalitions tab and highlight this coalition
-          document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-          document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
-          var coalBtn = document.querySelector('.tab-btn[data-tab="coalitions"]');
-          if (coalBtn) coalBtn.classList.add('active');
-          var coalTab = document.getElementById('tab-coalitions');
-          if (coalTab) coalTab.classList.add('active');
-          window.dispatchEvent(new CustomEvent('scotusgami-show-coalition', { detail: { sig: sig } }));
+          switchToTab('coalitions', function() {
+            requestAnimationFrame(function() {
+              window.dispatchEvent(new CustomEvent('scotusgami-show-coalition', { detail: { sig: sig } }));
+            });
+          });
         });
         frag.appendChild(link);
         frag.appendChild(document.createTextNode(' before.'));
@@ -687,6 +674,7 @@ window.addEventListener('scotusgami-data-ready', function() {
   window.coalitionIndex = coalitionIndex;
   window.majorityGroupIndex = majorityGroupIndex;
   window.dissentGroupIndex = dissentGroupIndex;
+  window.dispatchEvent(new Event('scotusgami-indexes-ready'));
 
   var feedContainer = document.getElementById('tab-feed');
   if (!feedContainer) return;
@@ -705,7 +693,7 @@ window.addEventListener('scotusgami-data-ready', function() {
   feedSearchInput.type = 'text';
   feedSearchInput.id = 'feed-search';
   feedSearchInput.className = 'tab-search';
-  feedSearchInput.placeholder = 'Search feed...';
+  feedSearchInput.placeholder = 'Search by case, justice, or event...';
   feedSearchInput.addEventListener('input', function() {
     renderFeedList();
   });
@@ -825,7 +813,13 @@ window.addEventListener('scotusgami-data-ready', function() {
     var filtered = allFeedItems.filter(function(item) {
       if (!activeTypes.has(item.type)) return false;
       if (item.novelty_score < minNovelty) return false;
-      if (searchTerm && item.case_name.toLowerCase().indexOf(searchTerm) === -1) return false;
+      if (searchTerm) {
+        var matchCase = item.case_name.toLowerCase().indexOf(searchTerm) !== -1;
+        var matchHeadline = item.headline && item.headline.toLowerCase().indexOf(searchTerm) !== -1;
+        var matchDetail = item.detail && item.detail.toLowerCase().indexOf(searchTerm) !== -1;
+        var matchJustice = item.justices && item.justices.some(function(j) { return j.toLowerCase().indexOf(searchTerm) !== -1; });
+        if (!matchCase && !matchHeadline && !matchDetail && !matchJustice) return false;
+      }
       return true;
     });
 
@@ -879,7 +873,8 @@ window.addEventListener('scotusgami-data-ready', function() {
       caseTitle.appendChild(caseName);
       var scoreSpan = document.createElement('span');
       scoreSpan.className = 'feed-card-score';
-      scoreSpan.textContent = ' (Score: ' + maxScore + ')';
+      scoreSpan.textContent = ' (Novelty: ' + maxScore + ')';
+      scoreSpan.title = 'Novelty score 0\u2013100. Higher = rarer event.';
       caseTitle.appendChild(scoreSpan);
       card.appendChild(caseTitle);
 
@@ -1033,21 +1028,15 @@ window.addEventListener('scotusgami-data-ready', function() {
       caseLink.textContent = first.case_name;
       caseLink.addEventListener('click', function(ev) {
         ev.preventDefault();
-        // Switch to Data tab
-        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-        document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
-        var dataBtn = document.querySelector('.tab-btn[data-tab="data"]');
-        if (dataBtn) dataBtn.classList.add('active');
-        var dataTab = document.getElementById('tab-data');
-        if (dataTab) dataTab.classList.add('active');
-        // Find and click the case in the case list
-        var caseListItems = document.querySelectorAll('#case-list li');
-        caseListItems.forEach(function(item) {
-          var datum = d3.select(item).datum();
-          if (datum && datum.id === caseId) {
-            item.click();
-            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
+        switchToTab('data', function() {
+          var caseListItems = document.querySelectorAll('#case-list li');
+          caseListItems.forEach(function(item) {
+            var datum = d3.select(item).datum();
+            if (datum && datum.id === caseId) {
+              item.click();
+              item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          });
         });
       });
       card.appendChild(caseLink);

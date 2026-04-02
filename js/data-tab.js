@@ -5,14 +5,7 @@ window.addEventListener('scotusgami-data-ready', function() {
   var DATA = window.DATA;
   if (!DATA) return;
 
-  function parseDate(dateStr) {
-    var parts = dateStr.split('/');
-    var month = parseInt(parts[0], 10);
-    var day = parseInt(parts[1], 10);
-    var year = parseInt(parts[2], 10);
-    year += year < 50 ? 2000 : 1900;
-    return new Date(year, month - 1, day);
-  }
+  var parseDate = window.parseDate;
 
   // Sort cases reverse chronologically (most recent first)
   var cases = DATA.cases.slice().sort(function(a, b) {

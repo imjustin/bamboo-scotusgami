@@ -423,6 +423,7 @@ header .subtitle { font-size: 14px; color: #8b949e; }
   .panel-feed-viz { grid-column: 1 / 3; grid-row: 3; max-height: 400px; }
   .panel-timeline { grid-column: 1 / 3; grid-row: 2; }
   .panel-pair-detail { grid-column: 1 / 3; grid-row: 4; max-height: 400px; }
+  .panel-top-coalitions { grid-column: 1 / 3; grid-row: 5; }
 }
 
 @media (max-width: 768px) {
@@ -439,6 +440,7 @@ header .subtitle { font-size: 14px; color: #8b949e; }
   .panel-timeline { grid-column: 1; grid-row: 3; }
   .panel-feed-viz { grid-column: 1; grid-row: 4; max-height: 400px; }
   .panel-pair-detail { grid-column: 1; grid-row: 5; max-height: 400px; }
+  .panel-top-coalitions { grid-column: 1; grid-row: 6; }
 
   .data-split { grid-template-columns: 1fr; }
   .data-left { border-right: none; border-bottom: 1px solid #21262d; max-height: 50vh; }

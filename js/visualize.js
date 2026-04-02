@@ -27,9 +27,7 @@ var selectedPairs = [];
 // Track which pair sections are collapsed (by pair key)
 var collapsedPairs = {};
 
-function pairKey(a, b) {
-  return [a, b].sort().join('-');
-}
+var pairKey = window.pairKey;
 
 function getRate(a, b) {
   if (a === b) return null;
@@ -347,6 +345,13 @@ var availableTermYears = [];
     if (!seen[c.term_year]) { seen[c.term_year] = true; availableTermYears.push(c.term_year); }
   });
   availableTermYears.sort(function(a, b) { return a - b; });
+
+  // Dynamically label Current/Last Term options with actual years
+  var termSelect = document.getElementById('term-filter');
+  if (termSelect && availableTermYears.length >= 2) {
+    termSelect.options[0].text = 'Current Term (' + availableTermYears[availableTermYears.length - 1] + ')';
+    termSelect.options[1].text = 'Last Term (' + availableTermYears[availableTermYears.length - 2] + ')';
+  }
 })();
 
 // Expose filter state globally for other scripts (feed.js)
@@ -858,22 +863,16 @@ function updatePairDetail() {
         nameLink.href = '#';
         nameLink.addEventListener('click', function(ev) {
           ev.preventDefault();
-          // Switch to Data tab
-          document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-          document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
-          var dataBtn = document.querySelector('.tab-btn[data-tab="data"]');
-          if (dataBtn) dataBtn.classList.add('active');
-          var dataTab = document.getElementById('tab-data');
-          if (dataTab) dataTab.classList.add('active');
-          // Find and click the case in the case list
           var caseId = d.case_id;
-          var caseListItems = document.querySelectorAll('#case-list li');
-          caseListItems.forEach(function(item) {
-            var datum = d3.select(item).datum();
-            if (datum && datum.id === caseId) {
-              item.click();
-              item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+          switchToTab('data', function() {
+            var caseListItems = document.querySelectorAll('#case-list li');
+            caseListItems.forEach(function(item) {
+              var datum = d3.select(item).datum();
+              if (datum && datum.id === caseId) {
+                item.click();
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            });
           });
         });
         li.appendChild(nameLink);
@@ -978,13 +977,11 @@ function updatePairDetail() {
       // Click to go to Coalitions tab
       item.addEventListener('click', function(ev) {
         ev.preventDefault();
-        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-        document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
-        var coalBtn = document.querySelector('.tab-btn[data-tab="coalitions"]');
-        if (coalBtn) coalBtn.classList.add('active');
-        var coalTab = document.getElementById('tab-coalitions');
-        if (coalTab) coalTab.classList.add('active');
-        window.dispatchEvent(new CustomEvent('scotusgami-show-coalition', { detail: { sig: entry.sig } }));
+        switchToTab('coalitions', function() {
+          requestAnimationFrame(function() {
+            window.dispatchEvent(new CustomEvent('scotusgami-show-coalition', { detail: { sig: entry.sig } }));
+          });
+        });
       });
 
       vizList.appendChild(item);
