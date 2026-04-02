@@ -549,8 +549,9 @@ function getFilteredCases() {
   });
 }
 
-// Expose globally for feed.js
+// Expose globally for feed.js and justices-tab.js
 window.getFilteredCases = getFilteredCases;
+window.getFilteredAgreements = getFilteredAgreements;
 
 // Recompute agreement rates from only the cases in the selected term range
 function getFilteredAgreements() {

@@ -47,6 +47,19 @@
   var CURRENT_JUSTICES = ['Roberts', 'Thomas', 'Alito', 'Sotomayor', 'Kagan',
                           'Gorsuch', 'Kavanaugh', 'Barrett', 'Jackson'];
 
+  // ── Helper: get filtered data based on global term filter ─────────────────
+  function getFilteredData() {
+    var filteredCases = window.getFilteredCases ? window.getFilteredCases() : window.DATA.cases;
+    var filteredCaseIds = {};
+    filteredCases.forEach(function(c) { filteredCaseIds[c.id] = true; });
+    var filteredVotes = window.DATA.votes.filter(function(v) {
+      return filteredCaseIds[v.case_id];
+    });
+    var filteredAgreements = window.getFilteredAgreements ? window.getFilteredAgreements() : null;
+    if (!filteredAgreements) filteredAgreements = window.DATA.agreements;
+    return { cases: filteredCases, votes: filteredVotes, agreements: filteredAgreements };
+  }
+
   // ── Helper: compute per-justice vote stats ────────────────────────────────
   // Returns { total, majority, dissent, concurrence, majorityRate, dissentRate, concurrenceRate }
   function computeVoteStats(justice, votes) {
@@ -173,13 +186,13 @@
     if (!container) return;
     while (container.firstChild) container.removeChild(container.firstChild);
 
-    var DATA = window.DATA;
+    var filtered = getFilteredData();
     var grid = document.createElement('div');
     grid.className = 'justices-roster';
 
     CURRENT_JUSTICES.forEach(function(justice) {
-      var stats = computeVoteStats(justice, DATA.votes);
-      var peers = getPeerAgreements(justice, DATA.agreements);
+      var stats = computeVoteStats(justice, filtered.votes);
+      var peers = getPeerAgreements(justice, filtered.agreements);
 
       // Median agreement: find the peer closest to 50% cross-ideological agreement
       // (just use middle-ranked peer as a proxy for "median")
@@ -275,8 +288,8 @@
   }
 
   function renderProfileHeader(parent, justice) {
-    var DATA = window.DATA;
-    var stats = computeVoteStats(justice, DATA.votes);
+    var filtered = getFilteredData();
+    var stats = computeVoteStats(justice, filtered.votes);
 
     var startTerm = JUSTICE_START_TERM[justice] || 2005;
     var endTerm = JUSTICE_END_TERM[justice];
@@ -310,10 +323,10 @@
   }
 
   function renderStatCards(parent, justice) {
-    var DATA = window.DATA;
-    var stats = computeVoteStats(justice, DATA.votes);
-    var swing = computeSwingScore(justice, DATA.cases, DATA.votes);
-    var driftPoints = computeIdeologyPoints(justice, DATA.cases, DATA.votes);
+    var filtered = getFilteredData();
+    var stats = computeVoteStats(justice, filtered.votes);
+    var swing = computeSwingScore(justice, filtered.cases, filtered.votes);
+    var driftPoints = computeIdeologyPoints(justice, filtered.cases, filtered.votes);
     var latestScore = driftPoints.length > 0 ? driftPoints[driftPoints.length - 1].score : null;
 
     var row = document.createElement('div');
@@ -371,7 +384,8 @@
     section.appendChild(chartDiv);
     parent.appendChild(section);
 
-    var points = computeIdeologyPoints(justice, window.DATA.cases, window.DATA.votes);
+    var filtered = getFilteredData();
+    var points = computeIdeologyPoints(justice, filtered.cases, filtered.votes);
     if (points.length === 0) {
       chartDiv.style.color = '#484f58';
       chartDiv.style.padding = '24px';
@@ -496,7 +510,8 @@
   }
 
   function renderPeers(parent, justice) {
-    var peers = getPeerAgreements(justice, window.DATA.agreements);
+    var filtered = getFilteredData();
+    var peers = getPeerAgreements(justice, filtered.agreements);
     var allies = peers.slice(0, 3);
     var opponents = peers.slice(-3).reverse();
 
@@ -548,15 +563,16 @@
   }
 
   function renderCaseList(parent, justice) {
-    var DATA = window.DATA;
+    var filtered = getFilteredData();
     var parseDate = window.parseDate;
 
-    // Build case lookup by id
+    // Build case lookup by id (from filtered cases only)
     var caseById = {};
-    DATA.cases.forEach(function(c) { caseById[c.id] = c; });
+    filtered.cases.forEach(function(c) { caseById[c.id] = c; });
 
     // Get this justice's votes with case data attached, sorted reverse-chron
-    var justiceVotes = DATA.votes
+    // Only includes cases within the global term filter range
+    var justiceVotes = filtered.votes
       .filter(function(v) { return v.justice === justice; })
       .map(function(v) { return { vote: v.vote, caseData: caseById[v.case_id] }; })
       .filter(function(entry) { return !!entry.caseData; })
@@ -564,14 +580,14 @@
         return parseDate(b.caseData.date) - parseDate(a.caseData.date);
       });
 
-    // Build vote-by-case index for co-voter lookup
+    // Build vote-by-case index for co-voter lookup (filtered votes)
     var votesByCase = {};
-    DATA.votes.forEach(function(v) {
+    filtered.votes.forEach(function(v) {
       if (!votesByCase[v.case_id]) votesByCase[v.case_id] = [];
       votesByCase[v.case_id].push(v);
     });
 
-    // Get unique terms for filter dropdown
+    // Get unique terms for sub-filter dropdown (within global range)
     var termsSet = {};
     justiceVotes.forEach(function(entry) { termsSet[entry.caseData.term_year] = true; });
     var termYears = Object.keys(termsSet).map(Number).sort(function(a, b) { return b - a; });
@@ -727,4 +743,14 @@
   if (window.DATA) {
     init();
   }
+
+  // Re-render when global term filter changes
+  window.addEventListener('scotusgami-filter-change', function() {
+    if (!window.DATA) return;
+    if (currentJustice) {
+      showProfile(currentJustice);
+    } else {
+      renderRoster();
+    }
+  });
 })();
