@@ -597,3 +597,263 @@ header .term-filter-controls { margin-left: auto; }
 .outcome-cell.empty { background: #161b22; border: 1px dashed #30363d; color: #484f58; font-weight: 400; }
 .outcome-legend { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
 
+
+/* ============================================
+   JUSTICES TAB
+   ============================================ */
+
+/* Roster grid */
+#tab-justices { padding: 24px 32px; }
+
+.justices-roster {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  max-width: 900px;
+}
+
+.justice-card {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 8px;
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.justice-card:hover {
+  border-color: #58a6ff;
+  background: #1c2128;
+}
+
+.justice-card-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #f0f6fc;
+  margin-bottom: 6px;
+}
+
+.justice-card-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.justice-card-badge.conservative { background: #3d1f1f; color: #f85149; }
+.justice-card-badge.liberal { background: #1f2d3d; color: #58a6ff; }
+
+.justice-card-tenure {
+  font-size: 12px;
+  color: #8b949e;
+  margin-bottom: 12px;
+}
+
+.justice-card-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.justice-card-stat {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.justice-card-stat-label { color: #8b949e; }
+.justice-card-stat-value { color: #c9d1d9; font-weight: 500; }
+
+/* Profile view */
+.justice-profile { max-width: 900px; }
+
+.justice-back-btn {
+  background: none;
+  border: 1px solid #30363d;
+  color: #8b949e;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-bottom: 20px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.justice-back-btn:hover { color: #c9d1d9; border-color: #58a6ff; }
+
+.justice-profile-header {
+  margin-bottom: 20px;
+}
+.justice-profile-name {
+  font-size: 26px;
+  font-weight: 700;
+  color: #f0f6fc;
+  margin-bottom: 4px;
+}
+.justice-profile-meta {
+  font-size: 13px;
+  color: #8b949e;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Stat cards row */
+.justice-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.justice-stat-card {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.justice-stat-card-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #8b949e;
+  margin-bottom: 6px;
+}
+.justice-stat-card-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f0f6fc;
+}
+.justice-stat-card-sub {
+  font-size: 11px;
+  color: #8b949e;
+  margin-top: 2px;
+}
+
+/* Ideology drift chart (single justice) */
+.justice-section {
+  margin-bottom: 28px;
+}
+.justice-section-title {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #8b949e;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+#justice-drift-chart {
+  background: #0d1117;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  padding: 12px 8px 4px;
+  min-height: 160px;
+}
+
+/* Allies and Opponents */
+.justice-peers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.justice-peers-col {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 8px;
+  padding: 16px;
+}
+.justice-peers-col-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #8b949e;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+.justice-peer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #21262d;
+  font-size: 13px;
+}
+.justice-peer-row:last-child { border-bottom: none; }
+.justice-peer-name { color: #c9d1d9; font-weight: 500; }
+.justice-peer-stat { color: #8b949e; font-size: 12px; }
+
+/* Case list */
+.justice-case-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.justice-case-filters select,
+.justice-case-filters button {
+  background: #161b22;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.justice-case-filters button.active {
+  border-color: #58a6ff;
+  color: #58a6ff;
+}
+
+.justice-case-list {
+  list-style: none;
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+}
+
+.justice-case-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid #21262d;
+  font-size: 13px;
+}
+.justice-case-item:last-child { border-bottom: none; }
+.justice-case-item:hover { background: #161b22; }
+
+.justice-case-left { flex: 1; min-width: 0; }
+.justice-case-name {
+  color: #58a6ff;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+  display: block;
+}
+.justice-case-name:hover { text-decoration: underline; }
+.justice-case-meta { color: #8b949e; font-size: 11px; margin-top: 2px; }
+
+.justice-vote-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  margin-left: 12px;
+}
+.justice-vote-badge.majority { background: #1f3d2b; color: #2ea043; }
+.justice-vote-badge.dissent { background: #3d1f1f; color: #f85149; }
+.justice-vote-badge.concurrence { background: #2d2a1f; color: #d29922; }
+
+.justice-case-empty {
+  padding: 24px;
+  text-align: center;
+  color: #484f58;
+  font-size: 13px;
+}
