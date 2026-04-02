@@ -26,6 +26,10 @@ var tooltip = d3.select('#tooltip');
 var selectedPairs = [];
 // Track which pair sections are collapsed (by pair key)
 var collapsedPairs = {};
+// Timeline overlay state (persists across updateTimeline calls)
+var showCloseOverlay = false;
+var showRollingOverlay = false;
+var rollingWindowSize = 20;
 
 var pairKey = window.pairKey;
 
@@ -429,6 +433,71 @@ var tlStripesGroup = tlSvg.append('g').attr('class', 'tl-stripes');
 var tlTermLabelsGroup = tlSvg.append('g').attr('class', 'tl-term-labels');
 var tlLinesGroup = tlSvg.append('g').attr('class', 'tl-lines');
 var tlDotsGroup = tlSvg.append('g').attr('class', 'tl-dots');
+
+// Timeline overlay toggle controls
+(function() {
+  var tlPanel = document.querySelector('.panel-timeline');
+  if (!tlPanel) return;
+
+  var controls = document.createElement('div');
+  controls.id = 'timeline-overlay-controls';
+
+  // Close-case checkbox
+  var closeLabel = document.createElement('label');
+  closeLabel.className = 'tl-overlay-label';
+  var closeCheck = document.createElement('input');
+  closeCheck.type = 'checkbox';
+  closeCheck.id = 'tl-close-overlay-check';
+  closeLabel.appendChild(closeCheck);
+  var closeText = document.createElement('span');
+  closeText.textContent = ' Close cases (5-4/6-3)';
+  closeLabel.appendChild(closeText);
+  controls.appendChild(closeLabel);
+
+  var sep = document.createElement('span');
+  sep.className = 'tl-overlay-sep';
+  sep.textContent = ' \u00b7 ';
+  controls.appendChild(sep);
+
+  // Rolling window checkbox
+  var rollingLabel = document.createElement('label');
+  rollingLabel.className = 'tl-overlay-label';
+  var rollingCheck = document.createElement('input');
+  rollingCheck.type = 'checkbox';
+  rollingCheck.id = 'tl-rolling-overlay-check';
+  rollingLabel.appendChild(rollingCheck);
+  var rollingText = document.createElement('span');
+  rollingText.textContent = ' Rolling: ';
+  rollingLabel.appendChild(rollingText);
+  controls.appendChild(rollingLabel);
+
+  // Window size select
+  var sizeSelect = document.createElement('select');
+  sizeSelect.id = 'tl-rolling-size';
+  [10, 20, 30, 50].forEach(function(n) {
+    var opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = n + ' cases';
+    if (n === 20) opt.selected = true;
+    sizeSelect.appendChild(opt);
+  });
+  controls.appendChild(sizeSelect);
+
+  tlPanel.appendChild(controls);
+
+  closeCheck.addEventListener('change', function() {
+    showCloseOverlay = this.checked;
+    updateTimeline();
+  });
+  rollingCheck.addEventListener('change', function() {
+    showRollingOverlay = this.checked;
+    updateTimeline();
+  });
+  sizeSelect.addEventListener('change', function() {
+    rollingWindowSize = parseInt(this.value, 10);
+    if (showRollingOverlay) updateTimeline();
+  });
+})();
 
 // ============================================
 // TERM FILTER STATE
@@ -886,6 +955,8 @@ function updateTimeline() {
   var caseTermYear = {};
   cases.forEach(function(c) { caseTermYear[c.id] = c.term_year; });
 
+  var closeCaseIdsSet = getCloseCaseIds(filteredCases);
+
   var allPairPoints = [];
   selectedPairs.forEach(function(pair) {
     var key1 = pair.names[0] + '-' + pair.names[1];
@@ -918,8 +989,34 @@ function updateTimeline() {
       return filteredCaseIds.has(p.case_id);
     });
 
+    // Close-case overlay data
+    var closePts = [];
+    if (showCloseOverlay) {
+      var closeRunning = 0, closeCount = 0;
+      sortedTlData.forEach(function(d) {
+        if (filteredCaseIds.has(d.case_id) && closeCaseIdsSet.has(d.case_id)) {
+          closeCount++;
+          closeRunning += d.agreed;
+          closePts.push({ case_id: d.case_id, rate: (closeRunning / closeCount) * 100 });
+        }
+      });
+    }
+
+    // Rolling window overlay data
+    var rollingPts = [];
+    if (showRollingOverlay) {
+      var N = rollingWindowSize;
+      var filteredSorted = sortedTlData.filter(function(d) { return filteredCaseIds.has(d.case_id); });
+      filteredSorted.forEach(function(d, i) {
+        var start = Math.max(0, i - N + 1);
+        var slice = filteredSorted.slice(start, i + 1);
+        var sum = slice.reduce(function(acc, s) { return acc + s.agreed; }, 0);
+        rollingPts.push({ case_id: d.case_id, rate: (sum / slice.length) * 100 });
+      });
+    }
+
     if (points.length > 0) {
-      allPairPoints.push({ pair: pair, points: points });
+      allPairPoints.push({ pair: pair, points: points, closePts: closePts, rollingPts: rollingPts });
     }
   });
 
@@ -927,6 +1024,14 @@ function updateTimeline() {
   var yMin = 100, yMax = 0;
   allPairPoints.forEach(function(pp) {
     pp.points.forEach(function(p) {
+      if (p.rate < yMin) yMin = p.rate;
+      if (p.rate > yMax) yMax = p.rate;
+    });
+    (pp.closePts || []).forEach(function(p) {
+      if (p.rate < yMin) yMin = p.rate;
+      if (p.rate > yMax) yMax = p.rate;
+    });
+    (pp.rollingPts || []).forEach(function(p) {
       if (p.rate < yMin) yMin = p.rate;
       if (p.rate > yMax) yMax = p.rate;
     });
@@ -1026,6 +1131,68 @@ function updateTimeline() {
       .on('mouseout', function() {
         tooltip.style('opacity', 0);
       });
+
+    // Close-case overlay (dashed)
+    if (showCloseOverlay && pp.closePts.length > 1) {
+      tlLinesGroup.append('path')
+        .datum(pp.closePts)
+        .attr('d', line)
+        .attr('fill', 'none')
+        .attr('stroke', pp.pair.color)
+        .attr('stroke-width', 1.5)
+        .attr('stroke-dasharray', '6,4')
+        .attr('stroke-opacity', 0.7);
+
+      tlDotsGroup.append('path')
+        .datum(pp.closePts)
+        .attr('fill', 'none')
+        .attr('stroke', 'transparent')
+        .attr('stroke-width', 14)
+        .attr('d', line)
+        .on('mousemove', (function(pair, pts) {
+          return function(event) {
+            var coords = d3.pointer(event, tlSvg.node());
+            var xPos = coords[0];
+            var closest = pts.reduce(function(best, p) {
+              return Math.abs(xScale(p.case_id) - xPos) < Math.abs(xScale(best.case_id) - xPos) ? p : best;
+            });
+            var c = cases.find(function(fc) { return fc.id === closest.case_id; });
+            showTooltip(event, pair.names[0] + ' + ' + pair.names[1] + ' (close cases)', closest.rate.toFixed(1) + '% \u2014 ' + (c ? c.name : ''));
+          };
+        })(pp.pair, pp.closePts))
+        .on('mouseout', function() { tooltip.style('opacity', 0); });
+    }
+
+    // Rolling window overlay (dotted)
+    if (showRollingOverlay && pp.rollingPts.length > 1) {
+      tlLinesGroup.append('path')
+        .datum(pp.rollingPts)
+        .attr('d', line)
+        .attr('fill', 'none')
+        .attr('stroke', pp.pair.color)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '2,3')
+        .attr('stroke-opacity', 0.65);
+
+      tlDotsGroup.append('path')
+        .datum(pp.rollingPts)
+        .attr('fill', 'none')
+        .attr('stroke', 'transparent')
+        .attr('stroke-width', 14)
+        .attr('d', line)
+        .on('mousemove', (function(pair, pts) {
+          return function(event) {
+            var coords = d3.pointer(event, tlSvg.node());
+            var xPos = coords[0];
+            var closest = pts.reduce(function(best, p) {
+              return Math.abs(xScale(p.case_id) - xPos) < Math.abs(xScale(best.case_id) - xPos) ? p : best;
+            });
+            var c = cases.find(function(fc) { return fc.id === closest.case_id; });
+            showTooltip(event, pair.names[0] + ' + ' + pair.names[1] + ' (' + rollingWindowSize + '-case rolling)', closest.rate.toFixed(1) + '% \u2014 ' + (c ? c.name : ''));
+          };
+        })(pp.pair, pp.rollingPts))
+        .on('mouseout', function() { tooltip.style('opacity', 0); });
+    }
   });
 }
 
@@ -1252,7 +1419,7 @@ function updatePairDetail() {
     'Agreement Heatmap': 'How often each pair of justices votes on the same side, as a percentage.\n\nUpper triangle = overall agreement. Lower triangle = close-case agreement (5-4 and 6-3 only). Click any cell for full history.\n\nRed = low agreement \u00b7 Yellow = mid \u00b7 Green = high',
     'Coalition Network': 'Justices that agree more are pulled closer together.\n\nThicker lines = higher agreement. Drag nodes to rearrange. Zoom with +/\u2013 or scroll wheel.',
     'SCOTUSgami Feed': 'A feed of notable voting events, newest first.\n\nGold border = SCOTUSgami (a genuinely novel coalition)',
-    'Agreement Over Time': 'Rolling agreement percentage over time for your selected pairs.\n\nSelect pairs by clicking cells in the heatmap or nodes in the network.\n\nGreen dots = agreed \u00b7 Red dots = disagreed',
+    'Agreement Over Time': 'Cumulative agreement percentage over time for your selected pairs.\n\nSelect pairs by clicking cells in the heatmap or nodes in the network.\n\nOptional overlays: Close cases (dashed) shows 5-4/6-3 only. Rolling window (dotted) shows a moving N-case average.\n\nSolid = cumulative \u00b7 Dashed = close cases \u00b7 Dotted = rolling',
     'Vote Configuration Grid': 'How many cases had each combination of majority size and concurrence count.\n\nDashes mark vote splits that have never occurred \u2014 a SCOTUSgami waiting to happen.',
     'Top Coalitions': 'The most common majority and dissent groupings in the selected time range.\n\nClick any group to expand and see individual cases.',
     'Swing Score (Close Decisions)': 'How often each justice ends up on the winning side in close decisions (5-4 and 6-3).\n\nHigher percentage = more often in the majority on contested cases.',

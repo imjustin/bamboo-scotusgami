@@ -213,10 +213,12 @@
 
   addSubheading(sec2, 'Timeline');
   addList(sec2, [
-    'Displays the rolling cumulative agreement percentage over time for selected justice pairs.',
-    'Green dots indicate cases where the pair agreed; red dots indicate disagreement.',
+    'Displays the cumulative agreement percentage over time for selected justice pairs (solid line).',
     'Use the term filter dropdown to zoom into specific time ranges.',
-    'When multiple pairs are selected, each is shown in a different color for comparison.'
+    'When multiple pairs are selected, each is shown in a different color for comparison.',
+    'Close cases overlay (dashed line): opt-in toggle that shows cumulative agreement restricted to 5-4 and 6-3 decisions only. Useful for comparing tight-case alignment to overall agreement.',
+    'Rolling window overlay (dotted line): opt-in toggle showing a moving average over the last N cases (10, 20, 30, or 50). Highlights recent momentum rather than long-run averages.',
+    'All overlays share the pair\'s color. Line style distinguishes them: solid = cumulative, dashed = close cases, dotted = rolling window.'
   ]);
 
   addSubheading(sec2, 'Feed Tab');

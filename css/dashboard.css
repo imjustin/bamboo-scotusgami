@@ -127,6 +127,18 @@ header .term-filter-controls { margin-left: auto; }
 /* Timeline */
 .timeline-path { fill: none; stroke-width: 2.5; stroke-linecap: round; }
 .timeline-dot { stroke: #0d1117; stroke-width: 2; cursor: pointer; }
+/* Timeline overlay controls */
+#timeline-overlay-controls {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 4px 0 2px 0; font-size: 11px; color: #8b949e;
+}
+.tl-overlay-label { display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
+.tl-overlay-label input[type='checkbox'] { cursor: pointer; accent-color: #58a6ff; }
+.tl-overlay-sep { color: #30363d; }
+#tl-rolling-size {
+  padding: 2px 4px; font-size: 11px; border: 1px solid #30363d; border-radius: 3px;
+  background: #21262d; color: #c9d1d9; cursor: pointer;
+}
 .axis text { fill: #8b949e; font-size: 11px; }
 .axis path, .axis line { stroke: #21262d; }
 .grid line { stroke: #21262d; stroke-opacity: 0.5; }
