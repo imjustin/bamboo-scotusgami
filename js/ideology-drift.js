@@ -165,6 +165,28 @@
       .domain([yMin, yMax])
       .range([height, 0]);
 
+    // Term stripes (behind everything)
+    termYears.forEach(function(term, i) {
+      var x1 = i === 0 ? 0 : xScale(term - 0.5);
+      var x2 = i === termYears.length - 1 ? width : xScale(term + 0.5);
+      if (i % 2 === 1) {
+        g.append('rect')
+          .attr('x', x1)
+          .attr('y', 0)
+          .attr('width', x2 - x1)
+          .attr('height', height)
+          .attr('fill', '#161b22')
+          .attr('opacity', 0.6);
+      }
+      g.append('text')
+        .attr('x', (x1 + x2) / 2)
+        .attr('y', -4)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#484f58')
+        .attr('font-size', '10px')
+        .text('OT' + term);
+    });
+
     // X axis
     g.append('g')
       .attr('class', 'axis')

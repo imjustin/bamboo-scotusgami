@@ -193,11 +193,12 @@
 
   addSubheading(sec2, 'Heatmap');
   addList(sec2, [
-    'A 9\u00d79 grid of current justices, with each cell showing the pairwise agreement rate as a percentage.',
-    'Color encodes agreement: red indicates low agreement (~45%), yellow is mid-range (~65%), and green is high agreement (~85%).',
+    'A 9\u00d79 grid of current justices. The upper triangle shows overall agreement rate; the lower triangle shows close-case agreement (5-4 and 6-3 decisions only).',
+    'Close-case agreement strips out unanimous and lopsided decisions, revealing true ideological alignment on contested cases.',
+    'Color encodes agreement across both halves on the same scale: red = low, yellow = mid, green = high. Colors are directly comparable between triangles.',
+    'Cells showing a dash (\u2014) in the lower triangle mean that pair has no close-case data in the selected time range.',
     'Click any cell to select that pair and load its detail in the side panel. Multi-select is supported \u2014 click additional cells to compare pairs.',
-    'The diagonal is blank because a justice cannot agree or disagree with themselves.',
-    'The number in each cell is the percentage of co-participated cases where both justices voted on the same side (majority or dissent).'
+    'The diagonal is blank because a justice cannot agree or disagree with themselves.'
   ]);
 
   addSubheading(sec2, 'Network Graph');
@@ -224,6 +225,62 @@
     'SCOTUSgami events \u2014 genuinely novel coalition patterns \u2014 are highlighted with a gold accent border.',
     'Use the filter buttons to narrow by event type (e.g., first agreement, streak, sole dissenter).',
     'The novelty score slider lets you set a minimum threshold to hide routine events and focus on the most surprising ones.'
+  ]);
+
+  addSubheading(sec2, 'Top Coalitions');
+  addList(sec2, [
+    'Two-column panel showing the most frequently occurring majority groups (left) and dissent groups (right) within the selected time range.',
+    'Each entry shows the group members, case count, and group size (e.g., 5J for a five-justice majority).',
+    'Click any group to jump to the Coalitions tab for a deeper look at those cases.',
+    'Responds to the global term filter \u2014 change the time range to see which coalitions dominate different eras.'
+  ]);
+
+  addSubheading(sec2, 'Coalitions Tab');
+  addList(sec2, [
+    'A standalone explorer for all majority and dissent groupings across the selected time period.',
+    'Each entry includes a year range showing when that coalition was active (e.g., 2017\u20132024).',
+    'Click any group to expand and see the individual cases, sorted by date.',
+    'Click a case name to jump to the Data tab with that case selected.',
+    'Use the search box to filter groups by justice name.',
+    'When you click "X times" in the Feed, it links here and auto-expands the matching coalition.'
+  ]);
+
+  addSubheading(sec2, 'Vote Configuration Grid');
+  addList(sec2, [
+    'A scorigami-style grid where the X-axis is majority size (5 through 9) and the Y-axis is the number of concurrences (0 through 4+).',
+    'Cells are colored by frequency \u2014 darker green means more cases with that exact vote configuration.',
+    'Empty cells with dashes represent SCOTUSgami configurations \u2014 vote splits that have never occurred in the selected time range.',
+    'Hover over a cell to see the count and example case names.'
+  ]);
+
+  addSubheading(sec2, 'Swing Score');
+  addList(sec2, [
+    'Shows how often each justice ends up on the winning side of close decisions (5-4 and 6-3 splits).',
+    'A high swing score means the justice almost always votes with the majority in close cases; a low score means they frequently dissent.',
+    'Bars are color-coded: blue/green for high percentages, yellow/red for low.',
+    'The parenthetical shows the total number of close cases the justice participated in.',
+    'Responds to the global term filter \u2014 narrow to a single term to see who was the swing vote that year.'
+  ]);
+
+  addSubheading(sec2, 'Ideology Drift');
+  addList(sec2, [
+    'A multi-line chart plotting each justice\u2019s ideological position over time, measured as agreement with the liberal bloc (Jackson, Kagan, Sotomayor) minus agreement with the conservative bloc (Alito, Thomas, Gorsuch).',
+    'Positive scores indicate more liberal-aligned voting; negative scores indicate more conservative-aligned voting.',
+    'The dashed zero line represents the midpoint \u2014 equal agreement with both blocs.',
+    'Click justice names in the legend to toggle individual lines on and off.',
+    'Hover over a line to see the exact score for a given term.',
+    'Justices only appear in terms they actually served \u2014 Jackson starts in 2022, Barrett in 2020, etc.',
+    'Responds to the global term filter to zoom into specific time periods.'
+  ]);
+
+  addSubheading(sec2, 'Unusual Bedfellows');
+  addList(sec2, [
+    'Surfaces cases where justice pairs agreed after a long streak of consecutive disagreements \u2014 genuinely surprising moments of alignment.',
+    'Entries are grouped by case (not per-pair) to avoid repetition when one case breaks multiple streaks.',
+    'The streak badge shows the longest disagreement streak broken by that case.',
+    'Each entry lists the pairs involved with their individual streak lengths.',
+    'A high streak number (10+, shown in red) means two justices had been on opposite sides for 10+ consecutive cases before finally agreeing.',
+    'Click a case name to jump to the Data tab for the full vote breakdown.'
   ]);
   layout.appendChild(sec2);
 

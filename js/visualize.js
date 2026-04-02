@@ -43,6 +43,59 @@ function getCaseCount(a, b) {
   return d ? d.cases : 0;
 }
 
+// Close-case (5-4 / 6-3) agreement utilities
+var voteIndex = {};
+DATA.votes.forEach(function(v) {
+  if (!voteIndex[v.case_id]) voteIndex[v.case_id] = [];
+  voteIndex[v.case_id].push(v);
+});
+
+function getCloseCaseIds(caseList) {
+  var closeSet = new Set();
+  caseList.forEach(function(c) {
+    var cv = voteIndex[c.id];
+    if (!cv) return;
+    var disCount = 0;
+    cv.forEach(function(v) { if (v.vote === 'dissent') disCount++; });
+    if (disCount === 3 || disCount === 4) closeSet.add(c.id);
+  });
+  return closeSet;
+}
+
+function getCloseAgreements(closeCaseIds) {
+  var result = {};
+  Object.keys(timeline).forEach(function(key) {
+    var tlData = timeline[key];
+    var count = 0, agreed = 0;
+    tlData.forEach(function(d) {
+      if (closeCaseIds.has(d.case_id)) {
+        count++;
+        if (d.agreed) agreed++;
+      }
+    });
+    if (count > 0) {
+      result[key] = { rate: Math.round((agreed / count) * 100), cases: count };
+    }
+  });
+  return result;
+}
+
+function getCloseRate(a, b, closeAgreements) {
+  if (a === b) return null;
+  if (!closeAgreements) return null;
+  var key1 = a + '-' + b, key2 = b + '-' + a;
+  var d = closeAgreements[key1] || closeAgreements[key2];
+  return d ? d.rate : null;
+}
+
+function getCloseCaseCount(a, b, closeAgreements) {
+  if (a === b) return 0;
+  if (!closeAgreements) return 0;
+  var key1 = a + '-' + b, key2 = b + '-' + a;
+  var d = closeAgreements[key1] || closeAgreements[key2];
+  return d ? d.cases : 0;
+}
+
 // Color scale (domain set after computing cell data)
 var colorScale = d3.scaleLinear()
   .range(['#da3633', '#d29922', '#2ea043'])
@@ -104,15 +157,28 @@ hmSvg.selectAll('.col-label')
   })
   .text(function(d) { return d; });
 
-// Cells
+// Cells — split triangle: upper = overall, lower = close-case
+var initCloseCaseIds = getCloseCaseIds(cases);
+var initCloseAgreements = getCloseAgreements(initCloseCaseIds);
+
 var cellData = [];
 justices.forEach(function(a, i) {
   justices.forEach(function(b, j) {
-    cellData.push({ a: a, b: b, i: i, j: j, rate: getRate(a, b), cases: getCaseCount(a, b) });
+    var metric, rate, caseCount;
+    if (i === j) {
+      metric = 'diagonal'; rate = null; caseCount = 0;
+    } else if (j > i) {
+      metric = 'overall'; rate = getRate(a, b); caseCount = getCaseCount(a, b);
+    } else {
+      metric = 'close';
+      rate = getCloseRate(a, b, initCloseAgreements);
+      caseCount = getCloseCaseCount(a, b, initCloseAgreements);
+    }
+    cellData.push({ a: a, b: b, i: i, j: j, rate: rate, cases: caseCount, metric: metric });
   });
 });
 
-// Set color scale domain from actual data range
+// Set color scale domain from actual data range (both triangles)
 var rates = cellData.filter(function(d) { return d.rate !== null; }).map(function(d) { return d.rate; });
 var minRate = Math.min.apply(null, rates);
 var maxRate = Math.max.apply(null, rates);
@@ -123,6 +189,33 @@ colorScale.domain([minRate, midRate, maxRate]);
 document.getElementById('legend-min').textContent = Math.round(minRate) + '%';
 document.getElementById('legend-max').textContent = Math.round(maxRate) + '%';
 
+// Triangle legend
+var triangleLegend = document.createElement('div');
+triangleLegend.className = 'heatmap-triangle-legend';
+var upperLabel = document.createElement('span');
+upperLabel.textContent = '\u25e4 Upper: Overall';
+triangleLegend.appendChild(upperLabel);
+var sep = document.createElement('span');
+sep.textContent = ' \u00b7 ';
+sep.style.color = '#30363d';
+triangleLegend.appendChild(sep);
+var lowerLabel = document.createElement('span');
+lowerLabel.textContent = '\u25e3 Lower: Close cases (5-4 / 6-3)';
+triangleLegend.appendChild(lowerLabel);
+document.getElementById('heatmap-legend').appendChild(triangleLegend);
+
+function hmCellFill(d) {
+  if (d.metric === 'diagonal') return '#161b22';
+  if (d.rate === null) return '#0d1117';
+  return colorScale(d.rate);
+}
+
+function hmTooltipText(d) {
+  var label = d.metric === 'close' ? 'Close-case agreement' : 'Overall agreement';
+  if (d.rate !== null) return label + ': ' + d.rate + '% (' + d.cases + ' cases)';
+  return label + ': no close cases';
+}
+
 var hmCells = hmSvg.selectAll('.heatmap-cell')
   .data(cellData)
   .join('rect')
@@ -132,20 +225,20 @@ var hmCells = hmSvg.selectAll('.heatmap-cell')
   .attr('width', cellSize - 2)
   .attr('height', cellSize - 2)
   .attr('rx', 3)
-  .attr('fill', function(d) { return d.rate !== null ? colorScale(d.rate) : '#161b22'; })
+  .attr('fill', hmCellFill)
   .on('click', function(ev, d) {
-    if (d.a !== d.b) togglePair(d.a, d.b);
+    if (d.metric !== 'diagonal') togglePair(d.a, d.b);
   })
   .on('mouseover', function(ev, d) {
-    if (d.rate !== null) {
-      showTooltip(ev, d.a + ' + ' + d.b, d.rate + '% agreement (' + d.cases + ' cases)');
+    if (d.metric !== 'diagonal') {
+      showTooltip(ev, d.a + ' + ' + d.b, hmTooltipText(d));
     }
   })
   .on('mouseout', function() { tooltip.style('opacity', 0); });
 
 // Cell text
 hmSvg.selectAll('.cell-text')
-  .data(cellData.filter(function(d) { return d.rate !== null; }))
+  .data(cellData.filter(function(d) { return d.metric !== 'diagonal'; }))
   .join('text')
   .attr('class', 'cell-text')
   .attr('x', function(d) { return labelWidth + d.j * cellSize + cellSize / 2 - 1; })
@@ -155,7 +248,10 @@ hmSvg.selectAll('.cell-text')
   .attr('font-size', '12px')
   .attr('font-weight', '500')
   .attr('pointer-events', 'none')
-  .text(function(d) { return Math.round(d.rate); });
+  .text(function(d) {
+    if (d.rate !== null) return Math.round(d.rate);
+    return '\u2014';
+  });
 
 // ============================================
 // NETWORK GRAPH
@@ -286,7 +382,7 @@ netSvg.call(zoom);
 // TIMELINE
 // ============================================
 var tlDiv = d3.select('#timeline');
-var tlMargin = { top: 10, right: 30, bottom: 50, left: 50 };
+var tlMargin = { top: 18, right: 30, bottom: 50, left: 50 };
 var tlH = 180;
 
 // Responsive width
@@ -328,7 +424,9 @@ var tlPlaceholder = tlSvg.append('text')
   .attr('font-size', '14px')
   .text('Select a pair to see their agreement over time');
 
-// Group for all timeline lines and dots
+// Group for term stripes (behind everything), then lines and dots
+var tlStripesGroup = tlSvg.append('g').attr('class', 'tl-stripes');
+var tlTermLabelsGroup = tlSvg.append('g').attr('class', 'tl-term-labels');
 var tlLinesGroup = tlSvg.append('g').attr('class', 'tl-lines');
 var tlDotsGroup = tlSvg.append('g').attr('class', 'tl-dots');
 
@@ -431,6 +529,20 @@ function parseTermDate(dateStr) {
   return new Date(year, month - 1, day);
 }
 
+// Header term range display
+var headerTermRange = document.getElementById('header-term-range');
+function updateHeaderTermRange() {
+  if (!headerTermRange) return;
+  var range = getTermRange();
+  var filteredCases = getFilteredCases();
+  if (range[0] === range[1]) {
+    headerTermRange.textContent = 'OT' + range[0] + ' \u2022 ' + filteredCases.length + ' cases';
+  } else {
+    headerTermRange.textContent = 'OT' + range[0] + '\u2013' + range[1] + ' \u2022 ' + filteredCases.length + ' cases';
+  }
+}
+updateHeaderTermRange();
+
 // Term filter controls
 (function() {
   var termSelect = document.getElementById('term-filter');
@@ -438,6 +550,7 @@ function parseTermDate(dateStr) {
   termSelect.addEventListener('change', function() {
     currentTermFilter = termSelect.value;
     window.currentTermFilter = currentTermFilter;
+    updateHeaderTermRange();
     updateAllSelections();
     window.dispatchEvent(new Event('scotusgami-filter-change'));
   });
@@ -540,13 +653,24 @@ function updateAllSelections() {
 // HEATMAP DATA UPDATE (term filter)
 // ============================================
 function updateHeatmapData(filteredAgreements) {
-  // Update cellData rates
+  // Compute close-case data for filtered range
+  var filteredCases = getFilteredCases();
+  var closeCaseIds = getCloseCaseIds(filteredCases);
+  var closeAgreements = getCloseAgreements(closeCaseIds);
+
+  // Update cellData rates by metric
   cellData.forEach(function(d) {
-    d.rate = getFilteredRate(d.a, d.b, filteredAgreements);
-    d.cases = getFilteredCaseCount(d.a, d.b, filteredAgreements);
+    if (d.metric === 'diagonal') return;
+    if (d.metric === 'overall') {
+      d.rate = getFilteredRate(d.a, d.b, filteredAgreements);
+      d.cases = getFilteredCaseCount(d.a, d.b, filteredAgreements);
+    } else {
+      d.rate = getCloseRate(d.a, d.b, closeAgreements);
+      d.cases = getCloseCaseCount(d.a, d.b, closeAgreements);
+    }
   });
 
-  // Recompute color scale domain from filtered rates
+  // Recompute color scale domain from all non-null rates
   var rates = cellData.filter(function(d) { return d.rate !== null; }).map(function(d) { return d.rate; });
   if (rates.length > 0) {
     var minR = Math.min.apply(null, rates);
@@ -558,12 +682,12 @@ function updateHeatmapData(filteredAgreements) {
   }
 
   // Update cell fill colors
-  hmCells.attr('fill', function(d) { return d.rate !== null ? colorScale(d.rate) : '#161b22'; });
+  hmCells.attr('fill', hmCellFill);
 
   // Update cell text values
   hmSvg.selectAll('.cell-text').remove();
   hmSvg.selectAll('.cell-text')
-    .data(cellData.filter(function(d) { return d.rate !== null; }))
+    .data(cellData.filter(function(d) { return d.metric !== 'diagonal'; }))
     .join('text')
     .attr('class', 'cell-text')
     .attr('x', function(d) { return labelWidth + d.j * cellSize + cellSize / 2 - 1; })
@@ -573,19 +697,18 @@ function updateHeatmapData(filteredAgreements) {
     .attr('font-size', '12px')
     .attr('font-weight', '500')
     .attr('pointer-events', 'none')
-    .text(function(d) { return Math.round(d.rate); });
+    .text(function(d) {
+      if (d.rate !== null) return Math.round(d.rate);
+      return '\u2014';
+    });
 
   // Update heatmap tooltip on hover
   hmCells.on('mouseover', function(ev, d) {
-    if (d.rate !== null) {
-      showTooltip(ev, d.a + ' + ' + d.b, d.rate + '% agreement (' + d.cases + ' cases)');
+    if (d.metric !== 'diagonal') {
+      showTooltip(ev, d.a + ' + ' + d.b, hmTooltipText(d));
     }
   });
 
-  // Re-apply delta overlay if active (prevents click from resetting to rate mode)
-  if (window.heatmapDelta && window.heatmapDelta.isActive()) {
-    window.heatmapDelta.reapply();
-  }
 }
 
 // ============================================
@@ -676,15 +799,69 @@ function updateTimeline() {
   tlDotsGroup.selectAll('*').remove();
   tlXAxisGroup.selectAll('*').remove();
   tlGridGroup.selectAll('*').remove();
+  tlStripesGroup.selectAll('*').remove();
+  tlTermLabelsGroup.selectAll('*').remove();
+  tlYAxisGroup.selectAll('*').remove();
 
   // Recompute responsive width
   tlW = getTimelineWidth();
   tlSvgEl.attr('width', tlW + tlMargin.left + tlMargin.right);
   tlPlaceholder.attr('x', tlW / 2);
 
+  // Get filtered cases and build X scale
+  var filteredCases = getFilteredCases();
+  var filteredCaseIds = new Set(filteredCases.map(function(c) { return c.id; }));
+
+  var xScale = d3.scalePoint()
+    .domain(filteredCases.map(function(c) { return c.id; }))
+    .range([0, tlW])
+    .padding(0.5);
+
+  // --- Term stripes and labels (always drawn, even with no pairs selected) ---
+  var termGroups = [];
+  var currentTerm = null;
+  filteredCases.forEach(function(c) {
+    if (!currentTerm || currentTerm.term !== c.term_year) {
+      currentTerm = { term: c.term_year, firstId: c.id, lastId: c.id };
+      termGroups.push(currentTerm);
+    } else {
+      currentTerm.lastId = c.id;
+    }
+  });
+
+  var step = xScale.step ? xScale.step() : (filteredCases.length > 1 ? tlW / (filteredCases.length - 1) : tlW);
+  var halfStep = step / 2;
+
+  termGroups.forEach(function(tg, i) {
+    var x1 = Math.max(0, xScale(tg.firstId) - halfStep);
+    var x2 = Math.min(tlW, xScale(tg.lastId) + halfStep);
+
+    // Alternating stripe background
+    if (i % 2 === 1) {
+      tlStripesGroup.append('rect')
+        .attr('x', x1)
+        .attr('y', 0)
+        .attr('width', x2 - x1)
+        .attr('height', tlH)
+        .attr('fill', '#161b22')
+        .attr('opacity', 0.6);
+    }
+
+    // Term label at top
+    tlTermLabelsGroup.append('text')
+      .attr('x', (x1 + x2) / 2)
+      .attr('y', -2)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#484f58')
+      .attr('font-size', '10px')
+      .text('OT' + tg.term);
+  });
+
   if (selectedPairs.length === 0) {
     tlPlaceholder.style('display', 'block');
-    // Still draw grid
+    // Default Y-axis 0-100
+    yScale.domain([0, 100]);
+    tlYAxisGroup.call(d3.axisLeft(yScale).ticks(5).tickFormat(function(d) { return d + '%'; }));
     tlGridGroup.call(d3.axisLeft(yScale).ticks(5).tickSize(-tlW).tickFormat(''));
     tlGridGroup.select('.domain').remove();
     return;
@@ -692,20 +869,81 @@ function updateTimeline() {
 
   tlPlaceholder.style('display', 'none');
 
-  // Get filtered cases and build X scale
-  var filteredCases = getFilteredCases();
-  var filteredCaseIds = new Set(filteredCases.map(function(c) { return c.id; }));
+  // --- Compute all points first to determine dynamic Y range ---
+  var caseOrder = {};
+  cases.forEach(function(c, idx) { caseOrder[c.id] = idx; });
+
+  // Justice start terms to filter bad data
+  var JUSTICE_START_TERM = {
+    'Roberts': 2005, 'Thomas': 2005, 'Alito': 2005, 'Stevens': 2005,
+    'Souter': 2005, 'Ginsburg': 2005, 'Breyer': 2005, 'OConnor': 2005,
+    'Kennedy': 2005, 'Scalia': 2005,
+    'Sotomayor': 2009, 'Kagan': 2010, 'Gorsuch': 2016,
+    'Kavanaugh': 2018, 'Barrett': 2020, 'Jackson': 2022
+  };
+
+  // Case -> term_year lookup
+  var caseTermYear = {};
+  cases.forEach(function(c) { caseTermYear[c.id] = c.term_year; });
+
+  var allPairPoints = [];
+  selectedPairs.forEach(function(pair) {
+    var key1 = pair.names[0] + '-' + pair.names[1];
+    var key2 = pair.names[1] + '-' + pair.names[0];
+    var tlData = timeline[key1] || timeline[key2] || [];
+    if (tlData.length === 0) return;
+
+    // Filter out cases before either justice joined the court
+    var minStart = Math.max(
+      JUSTICE_START_TERM[pair.names[0]] || 2005,
+      JUSTICE_START_TERM[pair.names[1]] || 2005
+    );
+
+    var sortedTlData = tlData.slice()
+      .filter(function(d) {
+        var termYear = caseTermYear[d.case_id];
+        return termYear === undefined || termYear >= minStart;
+      })
+      .sort(function(a, b) {
+        return (caseOrder[a.case_id] || 0) - (caseOrder[b.case_id] || 0);
+      });
+
+    var running = 0;
+    var allPoints = sortedTlData.map(function(d, i) {
+      running += d.agreed;
+      return { case_id: d.case_id, rate: (running / (i + 1)) * 100, agreed: d.agreed };
+    });
+
+    var points = allPoints.filter(function(p) {
+      return filteredCaseIds.has(p.case_id);
+    });
+
+    if (points.length > 0) {
+      allPairPoints.push({ pair: pair, points: points });
+    }
+  });
+
+  // Dynamic Y-axis: find min/max across all visible points, add 5% padding
+  var yMin = 100, yMax = 0;
+  allPairPoints.forEach(function(pp) {
+    pp.points.forEach(function(p) {
+      if (p.rate < yMin) yMin = p.rate;
+      if (p.rate > yMax) yMax = p.rate;
+    });
+  });
+  var yPad = Math.max(3, (yMax - yMin) * 0.1);
+  yMin = Math.max(0, Math.floor(yMin - yPad));
+  yMax = Math.min(100, Math.ceil(yMax + yPad));
+  if (yMin === yMax) { yMin = Math.max(0, yMin - 5); yMax = Math.min(100, yMax + 5); }
+
+  yScale.domain([yMin, yMax]);
+  tlYAxisGroup.call(d3.axisLeft(yScale).ticks(5).tickFormat(function(d) { return d + '%'; }));
+
+  // X axis labels
   var isSingleTerm = (currentTermFilter === 'current' || currentTermFilter === 'last');
   var isAllTerms = (currentTermFilter === 'last10');
 
-  var xScale = d3.scalePoint()
-    .domain(filteredCases.map(function(c) { return c.id; }))
-    .range([0, tlW])
-    .padding(0.5);
-
-  // X axis labels
   if (isAllTerms || (!isSingleTerm && filteredCases.length > 50)) {
-    // Show term year labels at boundaries
     var termYearTicks = [];
     var seenYears = new Set();
     filteredCases.forEach(function(c) {
@@ -725,12 +963,10 @@ function updateTimeline() {
     tlXAxisGroup.selectAll('text')
       .attr('text-anchor', 'middle');
   } else {
-    // Show case dates for single term or small ranges
     var tickValues = filteredCases.map(function(c) { return c.id; });
-    // Limit ticks if too many
     if (tickValues.length > 30) {
-      var step = Math.ceil(tickValues.length / 30);
-      tickValues = tickValues.filter(function(v, i) { return i % step === 0; });
+      var tvStep = Math.ceil(tickValues.length / 30);
+      tickValues = tickValues.filter(function(v, i) { return i % tvStep === 0; });
     }
     tlXAxisGroup.call(
       d3.axisBottom(xScale)
@@ -751,33 +987,8 @@ function updateTimeline() {
   tlGridGroup.call(d3.axisLeft(yScale).ticks(5).tickSize(-tlW).tickFormat(''));
   tlGridGroup.select('.domain').remove();
 
-  selectedPairs.forEach(function(pair) {
-    var key1 = pair.names[0] + '-' + pair.names[1];
-    var key2 = pair.names[1] + '-' + pair.names[0];
-    var tlData = timeline[key1] || timeline[key2] || [];
-
-    if (tlData.length === 0) return;
-
-    // Sort timeline data to match the chronologically sorted cases array
-    var caseOrder = {};
-    cases.forEach(function(c, idx) { caseOrder[c.id] = idx; });
-    var sortedTlData = tlData.slice().sort(function(a, b) {
-      return (caseOrder[a.case_id] || 0) - (caseOrder[b.case_id] || 0);
-    });
-
-    // Compute running rate, then filter to visible cases
-    var running = 0;
-    var allPoints = sortedTlData.map(function(d, i) {
-      running += d.agreed;
-      return { case_id: d.case_id, rate: (running / (i + 1)) * 100, agreed: d.agreed };
-    });
-
-    var points = allPoints.filter(function(p) {
-      return filteredCaseIds.has(p.case_id);
-    });
-
-    if (points.length === 0) return;
-
+  // Draw lines
+  allPairPoints.forEach(function(pp) {
     var line = d3.line()
       .x(function(d) { return xScale(d.case_id); })
       .y(function(d) { return yScale(d.rate); })
@@ -785,11 +996,36 @@ function updateTimeline() {
 
     tlLinesGroup.append('path')
       .attr('class', 'timeline-path')
-      .datum(points)
+      .datum(pp.points)
       .attr('d', line)
-      .attr('stroke', pair.color)
+      .attr('stroke', pp.pair.color)
       .attr('stroke-opacity', 1);
 
+    // Invisible wider path for hover detection
+    tlDotsGroup.append('path')
+      .datum(pp.points)
+      .attr('fill', 'none')
+      .attr('stroke', 'transparent')
+      .attr('stroke-width', 14)
+      .attr('d', line)
+      .on('mousemove', (function(pair, points) {
+        return function(event) {
+          var coords = d3.pointer(event, tlSvg.node());
+          var xPos = coords[0];
+          // Find closest point by x position
+          var closest = points.reduce(function(best, p) {
+            var dist = Math.abs(xScale(p.case_id) - xPos);
+            var bestDist = Math.abs(xScale(best.case_id) - xPos);
+            return dist < bestDist ? p : best;
+          });
+          var c = cases.find(function(fc) { return fc.id === closest.case_id; });
+          var caseName = c ? c.name : closest.case_id;
+          showTooltip(event, pair.names[0] + ' + ' + pair.names[1], closest.rate.toFixed(1) + '% \u2014 ' + caseName);
+        };
+      })(pp.pair, pp.points))
+      .on('mouseout', function() {
+        tooltip.style('opacity', 0);
+      });
   });
 }
 
@@ -912,34 +1148,25 @@ function updatePairDetail() {
 
 // ============================================
 // TOP COALITIONS VIZ PANEL
-// Two-column layout matching coalitions tab style
+// Consumes shared data from coalitions-tab.js (window.coalitionMajEntries/DisEntries)
 // ============================================
 (function() {
   var vizMajList = document.getElementById('coalition-viz-maj');
   var vizDisList = document.getElementById('coalition-viz-dis');
   if (!vizMajList || !vizDisList) return;
 
-  // Build vote lookup
-  var vizVotesByCase = {};
-  DATA.votes.forEach(function(v) {
-    if (!vizVotesByCase[v.case_id]) vizVotesByCase[v.case_id] = {};
-    vizVotesByCase[v.case_id][v.justice] = v.vote;
-  });
-
   function renderVizGroupList(listEl, entries, topN) {
     while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
-    if (entries.length === 0) {
+    if (!entries || entries.length === 0) {
       var empty = document.createElement('div');
       empty.className = 'pair-detail-placeholder';
       empty.textContent = 'No groups in selected range';
       listEl.appendChild(empty);
       return;
     }
-    var shown = entries.slice(0, topN);
-    shown.forEach(function(entry) {
+    entries.slice(0, topN).forEach(function(entry) {
       var item = document.createElement('div');
       item.className = 'coalition-group-item';
-      item.style.cursor = 'pointer';
 
       var header = document.createElement('div');
       header.className = 'coalition-group-header';
@@ -951,7 +1178,7 @@ function updatePairDetail() {
 
       var countBadge = document.createElement('span');
       countBadge.className = 'coalition-group-count';
-      countBadge.textContent = entry.count + (entry.count === 1 ? ' case' : ' cases');
+      countBadge.textContent = entry.cases.length + (entry.cases.length === 1 ? ' case' : ' cases');
       header.appendChild(countBadge);
 
       var sizeLabel = document.createElement('span');
@@ -961,9 +1188,45 @@ function updatePairDetail() {
 
       item.appendChild(header);
 
-      // Click to go to Coalitions tab
-      item.addEventListener('click', function() {
-        switchToTab('coalitions');
+      // Expandable case list
+      var caseList = document.createElement('div');
+      caseList.className = 'coalition-case-list collapsed';
+
+      entry.cases.slice().sort(function(a, b) {
+        return parseDate(b.date) - parseDate(a.date);
+      }).forEach(function(c) {
+        var caseRow = document.createElement('a');
+        caseRow.href = '#';
+        caseRow.className = 'coalition-case-row';
+        caseRow.textContent = c.name + ' (' + c.date + ')';
+        caseRow.addEventListener('click', function(ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          switchToTab('data', function() {
+            var caseListItems = document.querySelectorAll('#case-list li');
+            caseListItems.forEach(function(li) {
+              var datum = d3.select(li).datum();
+              if (datum && datum.id === c.id) {
+                li.click();
+                li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            });
+          });
+        });
+        caseList.appendChild(caseRow);
+      });
+
+      item.appendChild(caseList);
+
+      header.addEventListener('click', function() {
+        var isCollapsed = caseList.classList.contains('collapsed');
+        if (isCollapsed) {
+          caseList.classList.remove('collapsed');
+          item.classList.add('expanded');
+        } else {
+          caseList.classList.add('collapsed');
+          item.classList.remove('expanded');
+        }
       });
 
       listEl.appendChild(item);
@@ -971,41 +1234,54 @@ function updatePairDetail() {
   }
 
   function renderCoalitionViz() {
-    var filteredCases = getFilteredCases();
-    var majIdx = {};
-    var disIdx = {};
-
-    filteredCases.forEach(function(c) {
-      var cv = vizVotesByCase[c.id];
-      if (!cv) return;
-      var maj = [], dis = [];
-      Object.keys(cv).sort().forEach(function(j) {
-        if (cv[j] === 'dissent') dis.push(j);
-        else maj.push(j);
-      });
-      if (dis.length === 0) return;
-      var majKey = maj.join(',');
-      var disKey = dis.join(',');
-      if (!majIdx[majKey]) majIdx[majKey] = 0;
-      majIdx[majKey]++;
-      if (!disIdx[disKey]) disIdx[disKey] = 0;
-      disIdx[disKey]++;
-    });
-
-    var majEntries = Object.keys(majIdx).map(function(key) {
-      return { names: key.split(','), count: majIdx[key] };
-    }).sort(function(a, b) { return b.count - a.count; });
-
-    var disEntries = Object.keys(disIdx).map(function(key) {
-      return { names: key.split(','), count: disIdx[key] };
-    }).sort(function(a, b) { return b.count - a.count; });
-
-    renderVizGroupList(vizMajList, majEntries, 10);
-    renderVizGroupList(vizDisList, disEntries, 10);
+    renderVizGroupList(vizMajList, window.coalitionMajEntries, 10);
+    renderVizGroupList(vizDisList, window.coalitionDisEntries, 10);
   }
 
-  renderCoalitionViz();
+  // Data comes from coalitions-tab.js after scotusgami-indexes-ready
+  window.addEventListener('scotusgami-indexes-ready', renderCoalitionViz);
   window.addEventListener('scotusgami-filter-change', renderCoalitionViz);
+})();
+
+// ============================================
+// PANEL HELP TOOLTIPS
+// Adds ? icon to panel headers with hover descriptions
+// ============================================
+(function() {
+  var tips = {
+    'Agreement Heatmap': 'How often each pair of justices votes on the same side, as a percentage.\n\nUpper triangle = overall agreement. Lower triangle = close-case agreement (5-4 and 6-3 only). Click any cell for full history.\n\nRed = low agreement \u00b7 Yellow = mid \u00b7 Green = high',
+    'Coalition Network': 'Justices that agree more are pulled closer together.\n\nThicker lines = higher agreement. Drag nodes to rearrange. Zoom with +/\u2013 or scroll wheel.',
+    'SCOTUSgami Feed': 'A feed of notable voting events, newest first.\n\nGold border = SCOTUSgami (a genuinely novel coalition)',
+    'Agreement Over Time': 'Rolling agreement percentage over time for your selected pairs.\n\nSelect pairs by clicking cells in the heatmap or nodes in the network.\n\nGreen dots = agreed \u00b7 Red dots = disagreed',
+    'Vote Configuration Grid': 'How many cases had each combination of majority size and concurrence count.\n\nDashes mark vote splits that have never occurred \u2014 a SCOTUSgami waiting to happen.',
+    'Top Coalitions': 'The most common majority and dissent groupings in the selected time range.\n\nClick any group to expand and see individual cases.',
+    'Swing Score (Close Decisions)': 'How often each justice ends up on the winning side in close decisions (5-4 and 6-3).\n\nHigher percentage = more often in the majority on contested cases.',
+    'Ideology Drift': 'Each justice\u2019s ideological lean over time, measured as liberal bloc agreement minus conservative bloc agreement.\n\nClick names in the legend to toggle lines.\n\nAbove zero = more liberal-aligned \u00b7 Below zero = more conservative-aligned',
+    'Unusual Bedfellows': 'Cases where justice pairs agreed after a long streak of consecutive disagreements.\n\nClick any entry to expand the pair grid showing all streak-breaking alignments.\n\nRed = 10+ disagreements \u00b7 Yellow = 6\u20139 \u00b7 Blue = 3\u20135'
+  };
+
+  var panels = document.querySelectorAll('#tab-visualize .panel-title');
+  panels.forEach(function(titleEl) {
+    var text = titleEl.textContent.trim();
+    if (!tips[text]) return;
+
+    var helpIcon = document.createElement('span');
+    helpIcon.className = 'panel-help-icon';
+    helpIcon.textContent = '?';
+    helpIcon.setAttribute('tabindex', '0');
+
+    var tooltip = document.createElement('div');
+    tooltip.className = 'panel-help-tooltip';
+    tips[text].split('\n\n').forEach(function(para, i) {
+      var p = document.createElement('p');
+      p.textContent = para;
+      if (i > 0) p.style.marginTop = '6px';
+      tooltip.appendChild(p);
+    });
+
+    helpIcon.appendChild(tooltip);
+    titleEl.appendChild(helpIcon);
+  });
 })();
 
 // Dispatch event so other scripts know data is ready

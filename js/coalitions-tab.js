@@ -113,6 +113,10 @@ window.addEventListener('scotusgami-indexes-ready', function() {
     disEntries = Object.keys(disIdx).map(function(key) {
       return { key: key, names: key.split(','), cases: disIdx[key] };
     }).sort(function(a, b) { return b.cases.length - a.cases.length; });
+
+    // Expose for viz panel reuse
+    window.coalitionMajEntries = majEntries;
+    window.coalitionDisEntries = disEntries;
   }
 
   function renderGroups() {
@@ -177,7 +181,7 @@ window.addEventListener('scotusgami-indexes-ready', function() {
       caseList.className = 'coalition-case-list collapsed';
 
       entry.cases.slice().sort(function(a, b) {
-        return b.date < a.date ? -1 : b.date > a.date ? 1 : 0;
+        return parseDate(b.date) - parseDate(a.date);
       }).forEach(function(c) {
         var caseRow = document.createElement('a');
         caseRow.href = '#';

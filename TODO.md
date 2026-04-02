@@ -10,7 +10,7 @@
 
 - [ ] **Case Outcome Patterns** — Scorigami-style grid where one axis is majority size (5,6,7,8,9) and the other is number of concurrences, colored by frequency. Shows which vote configurations are common vs rare.
 
-- [ ] **Term-over-Term Comparison** — Side-by-side heatmaps or a delta heatmap showing which pairs got more/less aligned compared to last term. "Alito-Roberts agreement dropped 12% this term."
+- [ ] **Term-over-Term Comparison** — Side-by-side heatmaps or a delta heatmap showing which pairs got more/less aligned compared to last term. "Alito-Roberts agreement dropped 12% this term." *(Prototype built as Rate/Delta toggle on heatmap — removed because delta didn't accurately capture time period changes. Code preserved in git history. Needs rethinking: perhaps a separate panel or smarter term-pair selection logic.)*
 
 ## Medium Priority
 
@@ -23,6 +23,12 @@
 - [ ] **Coalition Stability** — For recurring coalitions, show a timeline of when they appeared. Are they clustering in recent terms or spread across years?
 
 - [ ] **"Hot Streaks" Dashboard** — Current active streaks for all pairs, sortable. "Gorsuch and Kavanaugh have agreed on the last 14 cases" at a glance.
+
+## Data Pipeline
+
+- [ ] **Audit for duplicate processing** — Before adding auto-fetch, review fetcher.py / processor.py / import_scdb.py to confirm there's no overlap in what each source provides. Ensure cases from OT2025 scraper vs SCDB import can't be double-counted in the DB.
+- [ ] **Audit client vs server processing** — Review `feed.js` / `visualize.js` for heavy computation (novelty scoring, coalition indexing, agreement computation). Determine what should be pre-computed in Python and saved to static JSON vs what must stay client-side. Goal: keep GitHub Pages static while reducing browser load.
+- [ ] **Automatic new case detection & processing** — Build system to check for new cases from supremecourt.gov and process them into the dataset on a schedule (e.g., daily, weekly). Should feed new cases into the existing pipeline without manual intervention. See [auto-fetch-design.md](docs/auto-fetch-design.md) for architecture and implementation plan.
 
 ## Bugs & Polish
 

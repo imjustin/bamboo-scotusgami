@@ -239,6 +239,86 @@ window.addEventListener('scotusgami-data-ready', function() {
 
     detailEl.appendChild(breakdown);
 
+    // SCOTUSgami Events section
+    if (window.feedItemsByCase) {
+      var caseFeedItems = (window.feedItemsByCase[c.id] || []).filter(function(item) {
+        return item.novelty_score >= 25;
+      }).sort(function(a, b) { return b.novelty_score - a.novelty_score; });
+
+      if (caseFeedItems.length > 0) {
+        var eventsDiv = document.createElement('div');
+        eventsDiv.className = 'case-analysis-section';
+
+        var eventsLabel = document.createElement('div');
+        eventsLabel.className = 'vote-group-label';
+        eventsLabel.textContent = 'Notable Events';
+        eventsDiv.appendChild(eventsLabel);
+
+        caseFeedItems.forEach(function(item) {
+          var row = document.createElement('div');
+          row.className = 'case-event-row';
+
+          var scoreBadge = document.createElement('span');
+          scoreBadge.className = 'case-event-score';
+          if (item.novelty_score >= 80) {
+            scoreBadge.classList.add('score-headline');
+          } else if (item.novelty_score >= 50) {
+            scoreBadge.classList.add('score-notable');
+          }
+          scoreBadge.textContent = item.novelty_score;
+          row.appendChild(scoreBadge);
+
+          var textSpan = document.createElement('span');
+          textSpan.className = 'case-event-text';
+          textSpan.textContent = item.headline;
+          row.appendChild(textSpan);
+
+          eventsDiv.appendChild(row);
+        });
+
+        detailEl.appendChild(eventsDiv);
+      }
+    }
+
+    // Unusual Bedfellows section
+    if (window.bedfellowsByCase) {
+      var bf = window.bedfellowsByCase[c.id];
+      if (bf && bf.pairs.length > 0) {
+        var bfDiv = document.createElement('div');
+        bfDiv.className = 'case-analysis-section';
+
+        var bfLabel = document.createElement('div');
+        bfLabel.className = 'vote-group-label';
+        bfLabel.textContent = 'Unusual Bedfellows';
+        bfDiv.appendChild(bfLabel);
+
+        bf.pairs.sort(function(a, b) { return b.streak - a.streak; });
+        bf.pairs.forEach(function(p) {
+          var row = document.createElement('div');
+          row.className = 'case-event-row';
+
+          var streakBadge = document.createElement('span');
+          streakBadge.className = 'case-event-score';
+          if (p.streak >= 10) {
+            streakBadge.classList.add('score-headline');
+          } else if (p.streak >= 6) {
+            streakBadge.classList.add('score-notable');
+          }
+          streakBadge.textContent = p.streak;
+          row.appendChild(streakBadge);
+
+          var textSpan = document.createElement('span');
+          textSpan.className = 'case-event-text';
+          textSpan.textContent = p.a + ' + ' + p.b + ' agreed after ' + p.streak + ' consecutive disagreements';
+          row.appendChild(textSpan);
+
+          bfDiv.appendChild(row);
+        });
+
+        detailEl.appendChild(bfDiv);
+      }
+    }
+
     // Sources section
     if (c.source_url || c.oyez_url || c.scotusblog_url) {
       var sourcesDiv = document.createElement('div');
