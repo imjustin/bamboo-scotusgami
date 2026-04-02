@@ -24,6 +24,8 @@ var tooltip = d3.select('#tooltip');
 
 // Selected pairs: array of { key: "A-B", names: [A, B], color: string }
 var selectedPairs = [];
+// Track which pair sections are collapsed (by pair key)
+var collapsedPairs = {};
 
 function pairKey(a, b) {
   return [a, b].sort().join('-');
@@ -494,6 +496,7 @@ function togglePair(a, b) {
 
   if (idx >= 0) {
     // Deselect
+    delete collapsedPairs[key];
     selectedPairs.splice(idx, 1);
     // Reassign colors to keep them sequential
     selectedPairs.forEach(function(p, i) { p.color = PAIR_COLORS[i % PAIR_COLORS.length]; });
@@ -508,6 +511,7 @@ function togglePair(a, b) {
 
 function clearAllPairs() {
   selectedPairs = [];
+  collapsedPairs = {};
   updateAllSelections();
 }
 
@@ -880,9 +884,16 @@ function updatePairDetail() {
 
     section.appendChild(body);
 
+    // Restore collapse state if previously collapsed
+    if (collapsedPairs[pair.key]) {
+      body.classList.add('collapsed');
+      chevron.classList.add('collapsed');
+    }
+
     // Toggle collapse on header click
     header.addEventListener('click', function() {
       var isCollapsed = body.classList.toggle('collapsed');
+      collapsedPairs[pair.key] = isCollapsed;
       if (isCollapsed) {
         chevron.classList.add('collapsed');
       } else {
@@ -893,6 +904,96 @@ function updatePairDetail() {
     container.appendChild(section);
   });
 }
+
+// ============================================
+// TOP COALITIONS VIZ PANEL
+// ============================================
+(function() {
+  var vizList = document.getElementById('coalition-viz-list');
+  if (!vizList) return;
+
+  // Build vote lookup
+  var vizVotesByCase = {};
+  DATA.votes.forEach(function(v) {
+    if (!vizVotesByCase[v.case_id]) vizVotesByCase[v.case_id] = {};
+    vizVotesByCase[v.case_id][v.justice] = v.vote;
+  });
+
+  function renderCoalitionViz() {
+    while (vizList.firstChild) vizList.removeChild(vizList.firstChild);
+
+    var filteredCases = getFilteredCases();
+    var filteredIds = new Set(filteredCases.map(function(c) { return c.id; }));
+
+    // Count coalitions within filtered cases
+    var coalCounts = {};
+    filteredCases.forEach(function(c) {
+      var cv = vizVotesByCase[c.id];
+      if (!cv) return;
+      var maj = [], dis = [];
+      Object.keys(cv).sort().forEach(function(j) {
+        if (cv[j] === 'dissent') dis.push(j);
+        else maj.push(j);
+      });
+      if (dis.length === 0) return;
+      var sig = maj.join(',') + '|' + dis.join(',');
+      if (!coalCounts[sig]) coalCounts[sig] = { maj: maj, dis: dis, count: 0 };
+      coalCounts[sig].count++;
+    });
+
+    // Sort by count descending
+    var sorted = Object.keys(coalCounts).map(function(sig) {
+      return { sig: sig, maj: coalCounts[sig].maj, dis: coalCounts[sig].dis, count: coalCounts[sig].count };
+    }).sort(function(a, b) { return b.count - a.count; });
+
+    if (sorted.length === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'pair-detail-placeholder';
+      empty.textContent = 'No non-unanimous cases in selected range';
+      vizList.appendChild(empty);
+      return;
+    }
+
+    // Show top coalitions (all of them, scrollable)
+    sorted.forEach(function(entry) {
+      var item = document.createElement('a');
+      item.href = '#';
+      item.className = 'coalition-viz-item';
+
+      var split = document.createElement('span');
+      split.className = 'coalition-viz-split';
+      split.textContent = entry.maj.length + '-' + entry.dis.length;
+      item.appendChild(split);
+
+      var names = document.createElement('span');
+      names.className = 'coalition-viz-names';
+      names.textContent = entry.dis.join(', ') + ' dissenting';
+      item.appendChild(names);
+
+      var count = document.createElement('span');
+      count.className = 'coalition-viz-count';
+      count.textContent = entry.count + '\u00d7';
+      item.appendChild(count);
+
+      // Click to go to Coalitions tab
+      item.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.tab-content').forEach(function(tc) { tc.classList.remove('active'); });
+        var coalBtn = document.querySelector('.tab-btn[data-tab="coalitions"]');
+        if (coalBtn) coalBtn.classList.add('active');
+        var coalTab = document.getElementById('tab-coalitions');
+        if (coalTab) coalTab.classList.add('active');
+        window.dispatchEvent(new CustomEvent('scotusgami-show-coalition', { detail: { sig: entry.sig } }));
+      });
+
+      vizList.appendChild(item);
+    });
+  }
+
+  renderCoalitionViz();
+  window.addEventListener('scotusgami-filter-change', renderCoalitionViz);
+})();
 
 // Dispatch event so other scripts know data is ready
 window.dispatchEvent(new Event('scotusgami-data-ready'));

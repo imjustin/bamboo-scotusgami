@@ -39,7 +39,15 @@ header .subtitle { font-size: 14px; color: #8b949e; }
 .panel-network { grid-column: 2; grid-row: 1; }
 .panel-feed-viz { grid-column: 3; grid-row: 1; overflow-y: auto; max-height: calc(100vh - 110px); }
 .panel-timeline { grid-column: 1 / 3; grid-row: 2; min-height: 220px; }
-.panel-pair-detail { grid-column: 3; grid-row: 2; overflow-y: auto; max-height: calc(100vh - 110px); }
+.panel-pair-detail { grid-column: 3; grid-row: 2 / 4; overflow-y: auto; max-height: calc(100vh - 110px); }
+.panel-top-coalitions { grid-column: 1 / 3; grid-row: 3; }
+
+.coalition-viz-list { max-height: 300px; overflow-y: auto; padding: 4px 0; }
+.coalition-viz-item { display: flex; align-items: center; gap: 10px; padding: 6px 10px; color: #c9d1d9; text-decoration: none; border-bottom: 1px solid #161b22; cursor: pointer; }
+.coalition-viz-item:hover { background: #161b22; }
+.coalition-viz-split { font-weight: 600; font-size: 14px; color: #f0f6fc; min-width: 36px; }
+.coalition-viz-names { flex: 1; font-size: 13px; color: #8b949e; }
+.coalition-viz-count { font-size: 13px; font-weight: 600; color: #58a6ff; }
 
 /* Data tab layout */
 .data-layout { padding: 20px 32px; max-width: 900px; }
