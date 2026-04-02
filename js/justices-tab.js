@@ -564,6 +564,13 @@
         return parseDate(b.caseData.date) - parseDate(a.caseData.date);
       });
 
+    // Build vote-by-case index for co-voter lookup
+    var votesByCase = {};
+    DATA.votes.forEach(function(v) {
+      if (!votesByCase[v.case_id]) votesByCase[v.case_id] = [];
+      votesByCase[v.case_id].push(v);
+    });
+
     // Get unique terms for filter dropdown
     var termsSet = {};
     justiceVotes.forEach(function(entry) { termsSet[entry.caseData.term_year] = true; });
@@ -658,14 +665,22 @@
         var nameLink = document.createElement('a');
         nameLink.className = 'justice-case-name';
         nameLink.textContent = c.name;
-        if (c.source_url) {
-          nameLink.href = c.source_url;
-          nameLink.target = '_blank';
-          nameLink.rel = 'noopener noreferrer';
-        } else {
-          nameLink.style.cursor = 'default';
-          nameLink.style.color = '#c9d1d9';
-        }
+        nameLink.href = '#';
+        nameLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          // Switch to Data tab and select this case
+          window.switchToTab('data', function() {
+            var items = document.querySelectorAll('#case-list li');
+            for (var i = 0; i < items.length; i++) {
+              var datum = d3.select(items[i]).datum();
+              if (datum && datum.id === c.id) {
+                items[i].click();
+                items[i].scrollIntoView({ block: 'center' });
+                break;
+              }
+            }
+          });
+        });
         left.appendChild(nameLink);
 
         var meta = document.createElement('div');
@@ -675,10 +690,25 @@
 
         li.appendChild(left);
 
-        var badge = document.createElement('span');
-        badge.className = 'justice-vote-badge ' + entry.vote;
-        badge.textContent = entry.vote;
-        li.appendChild(badge);
+        // Show co-voters on the same side (skip for concurrence)
+        if (entry.vote === 'majority' || entry.vote === 'dissent') {
+          var caseVotes = votesByCase[c.id] || [];
+          var sameVote = entry.vote === 'dissent' ? 'dissent' : 'majority';
+          var coVoters = caseVotes
+            .filter(function(v) {
+              if (v.justice === justice) return false;
+              if (sameVote === 'dissent') return v.vote === 'dissent';
+              return v.vote !== 'dissent'; // majority + concurrence = same side
+            })
+            .map(function(v) { return v.justice; })
+            .sort();
+          if (coVoters.length > 0) {
+            var coSpan = document.createElement('span');
+            coSpan.className = 'justice-case-covote';
+            coSpan.textContent = coVoters.join(', ');
+            li.appendChild(coSpan);
+          }
+        }
 
         listEl.appendChild(li);
       });

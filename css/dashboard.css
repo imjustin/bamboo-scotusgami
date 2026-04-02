@@ -851,6 +851,18 @@ header .term-filter-controls { margin-left: auto; }
 .justice-vote-badge.dissent { background: #3d1f1f; color: #f85149; }
 .justice-vote-badge.concurrence { background: #2d2a1f; color: #d29922; }
 
+.justice-case-covote {
+  font-size: 11px;
+  color: #8b949e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
+  text-align: right;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
 .justice-case-empty {
   padding: 24px;
   text-align: center;
