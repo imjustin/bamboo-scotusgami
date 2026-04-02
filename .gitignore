@@ -28,3 +28,4 @@ data/
 *.db
 opinion-pdfs/
 .superpowers/
+.worktrees/
