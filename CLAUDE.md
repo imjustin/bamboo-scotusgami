@@ -45,12 +45,14 @@ The project has two layers: a Python data pipeline and a browser-based dashboard
 - `js/visualize.js` — heatmap, network graph, timeline, pair detail, Top Coalitions panel
 - `js/coalitions-tab.js` — Coalition Explorer tab (independent tab, not nested under Data)
 - `js/data-tab.js` — case list with search, vote breakdowns, source links
+- `js/justices-tab.js` — Justices tab: 3×3 roster grid and per-justice profile pages (bio, stat cards, ideology drift chart, allies/opponents, case history)
 - `js/about.js` — reference documentation
 
 ## Dashboard Conventions
 
 - **No innerHTML** — a pre-commit security hook blocks it. Use `createElement` / `textContent` / `appendChild` exclusively. Never use `insertAdjacentHTML`.
-- **Cross-file communication**: custom events (`scotusgami-data-ready`, `scotusgami-filter-change`, `scotusgami-show-coalition`) and shared globals (`window.DATA`, `window.currentTermFilter`, `window.getFilteredCases`, `window.computeScotusgamiFeed`).
+- **Cross-file communication**: custom events (`scotusgami-data-ready`, `scotusgami-filter-change`, `scotusgami-show-coalition`) and shared globals (`window.DATA`, `window.currentTermFilter`, `window.getFilteredCases`, `window.getFilteredAgreements`, `window.computeScotusgamiFeed`, `window.switchToTab`).
 - **Coalition indexes** are built globally in `feed.js` and exposed via `window` for cross-tab access.
 - **Panel layout preference**: independent panels in the viz grid, not features nested inside other features.
 - **Date format** in data: `M/DD/YY` — requires custom parsing, not string-sortable.
+- **Case history vote display**: Show co-voters by justice name (e.g. "Alito, Thomas") rather than a vote-type badge. Majority-side co-voters include majority + concurrence votes; dissent-side shows only dissenters. Skip co-voter display for concurrences.
